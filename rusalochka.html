@@ -243,7 +243,7 @@ function render(t,blink,S,dt){
   el.pupils.forEach(p=>p.setAttribute('transform',`translate(${gx.toFixed(2)} ${gy.toFixed(2)})`));
 }
 window.CHAR={id:'rusalochka',name:'Русалочка',gen:'Русалочки',
-  roots:{me:'русалоч',others:[{root:'белоснеж',gen:'Белоснежки',name:'Белоснежка'}],release:['принц']},
+  roots:{me:/русало[чш]|русалк/,others:[{root:/бел+[аоые]?[\s-]*снеж|снежк/,gen:'Белоснежки',name:'Белоснежка'}],release:[/принц|принс/]},
   phrases:['Я так хочу увидеть мир над волнами!','Слышите? Это шумит море.','На дне морском сегодня тихо-тихо…','Каждая жемчужина — это чья-то сказка.','Идёмте со мной, я покажу вам коралловый сад!','Говорят, у людей вместо хвоста — две ноги. Странно!'],
   tts:{pitch:1.4,rate:1.0}, defaultVoice:'female', codeword:true, render};
 </script>

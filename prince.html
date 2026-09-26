@@ -224,7 +224,7 @@ function render(t,blink,S,dt){
   el.pupils.forEach(p=>p.setAttribute('transform',`translate(${gx.toFixed(2)} ${gy.toFixed(2)})`));
 }
 window.CHAR={id:'prince',name:'Принц',gen:'Принца',
-  roots:{me:'принц',others:[{root:'русалоч',gen:'Русалочки',name:'Русалочка'},{root:'белоснеж',gen:'Белоснежки',name:'Белоснежка'}],release:[]},
+  roots:{me:/принц|принс/,others:[{root:/русало[чш]|русалк/,gen:'Русалочки',name:'Русалочка'},{root:/бел+[аоые]?[\s-]*снеж|снежк/,gen:'Белоснежки',name:'Белоснежка'}],release:[]},
   phrases:['Я искал вас по всему королевству!','Позвольте пригласить вас на танец.','Мой конь устал, а я — нет!','Клянусь честью принца!','Кто здесь самая прекрасная? Не отвечайте, я знаю.','Дракон? Какой дракон? А, этот… Уже улетел.'],
   tts:{pitch:0.7,rate:0.95}, defaultVoice:'male', codeword:false, render};
 </script>
