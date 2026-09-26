@@ -1,7 +1,7 @@
 /* Общий движок говорящих персонажей (одна сцена, персонажи переключаются без перезагрузки).
    Требует tones.js и chars.js. Страница задаёт window.TH_DEFAULT — персонаж по умолчанию. */
 (function(){
-const TH_VERSION='v20';
+const TH_VERSION='v21';
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -98,7 +98,10 @@ async function startMic(deviceId,quiet){
     src.connect(analyser);
     audio={ctx,stream,analyser,data:new Float32Array(analyser.fftSize)};
     audio.det=new ThToneDetector(analyser,ctx.sampleRate,onTone);
-    if(ctx.state==='suspended') await ctx.resume();
+    if(ctx.state!=='running'){ try{ await ctx.resume(); }catch(e){} }
+    ctx.onstatechange=()=>log('audio ctx: '+ctx.state);
+    S.needTap=ctx.state!=='running';
+    if(S.needTap){ log('audio ctx suspended — ждём касания'); showBubble('Нажмите на экран, чтобы включить звук',6000); }
     setMode('mic'); $('#micBtn').classList.add('on'); $('#micBtn').textContent='⏹ Выключить микрофон';
     const used=stream.getAudioTracks()[0]; save(DEV_KEY,used.getSettings().deviceId||''); save(MIC_KEY,'1');
     await listDevices();
@@ -194,6 +197,12 @@ stage.addEventListener('pointerdown',e=>{ if(!e.target.closest('svg')) return; e
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>stage.addEventListener(ev,()=>{S.keyHeld=false;}));
 stage.addEventListener('contextmenu',e=>e.preventDefault());
 if('speechSynthesis' in window) speechSynthesis.getVoices();
+async function wakeAudio(){
+  if(audio&&audio.ctx.state!=='running'){ try{ await audio.ctx.resume(); }catch(e){} log('audio ctx после касания: '+audio.ctx.state); }
+  if(audio&&audio.ctx.state==='running'){ S.needTap=false; }
+  try{ thToneContext(); }catch(e){}
+}
+['pointerdown','keydown','touchend'].forEach(ev=>addEventListener(ev,wakeAudio,{passive:true}));
 
 // ---------- старт ----------
 const startId=(location.hash||'').slice(1);
@@ -246,7 +255,8 @@ function frame(now){
   if(S.mode==='mic'&&audio&&audio.det&&(audio.det.lastNote||audio.det.lastStep>0)){ const d=audio.det; pitchEl.textContent='🎵 '+(d.lastNote?d.lastNote+' Гц ':'')+(d.lastStep>0?(TH_TONES[d.lastKey]||{}).chord+' '+d.lastStep+'/3':''); pitchEl.style.color=d.lastStep>0?'#0a7d2a':''; }
   else { pitchEl.style.color=''; pitchEl.textContent=(S.mode==='mic'&&audio)?('вход '+(S.raw*1000).toFixed(0)+' ×'+S.gain.toFixed(1)):''; }
   let st;
-  if(S.mode==='mic'){
+  if(S.mode==='mic'&&S.needTap) st='Нажмите на экран → звук';
+  else if(S.mode==='mic'){
     if(S.sig) st= S.floor==='me'?(S.talk>0.5?'Говорит 🗣':'Слово у меня'):S.floor==='other'?'Слово у '+otherGen:'Ждём сигнал…';
     else st= S.talk>0.5?'Говорит 🗣':'Слушаю…';
   } else st= S.mode==='demo'?'Демо-режим':S.mode==='speak'?'Говорит сам(а) 🗣':(S.keyHeld?'Говорит (удержание)':'Микрофон выключен');

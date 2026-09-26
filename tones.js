@@ -8,8 +8,8 @@ window.TH_TONES={
   prince:     {f:[1900,3500,2700], name:'Принц',      chord:'зигзаг ↑↓',        gen:'Принца',    color:'#d4a017'},
   silence:    {f:[3300,1700,2500], name:'Тишина',     chord:'зигзаг ↓↑',        gen:null,        color:'#6b7280'}
 };
-window.TH_NOTE_MS=260;   // длительность ноты
-window.TH_GAP_MS=100;     // пауза между нотами
+window.TH_NOTE_MS=320;   // длительность ноты
+window.TH_GAP_MS=110;     // пауза между нотами
 window.TH_TONE_MS=3*window.TH_NOTE_MS+2*window.TH_GAP_MS;
 
 let _toneCtx=null;
@@ -52,19 +52,21 @@ window.ThToneDetector=class{
     this.curNote=null; this.curFrames=0; this.lastT=-10; this.lastScore=0; this.lastKey=null; this.lastDom=0; this.lastNote=null;
   }
   peak(idx){ const s=this.spec; let m=-Infinity; for(let i=idx-1;i<=idx+1;i++) if(s[i]>m) m=s[i]; return m; }
+  // -Infinity в тишине (Safari) → считаем очень тихим фоном
+  fin(v){ return isFinite(v)?v:-160; }
   base(idx){ const s=this.spec; let sum=0,n=0;
-    for(let i=idx-12;i<=idx-4;i++){ if(i>=0){sum+=s[i];n++;} }
-    for(let i=idx+4;i<=idx+12;i++){ if(i<s.length){sum+=s[i];n++;} }
+    for(let i=idx-12;i<=idx-4;i++){ if(i>=0){sum+=this.fin(s[i]);n++;} }
+    for(let i=idx+4;i<=idx+12;i++){ if(i<s.length){sum+=this.fin(s[i]);n++;} }
     return n?sum/n:-100; }
   maxOther(idx){ const s=this.spec; let m=-Infinity;
-    for(let i=this.bandLo;i<=this.bandHi;i++){ if(Math.abs(i-idx)<=3) continue; if(s[i]>m) m=s[i]; }
+    for(let i=this.bandLo;i<=this.bandHi;i++){ if(Math.abs(i-idx)<=3) continue; const v=this.fin(s[i]); if(v>m) m=v; }
     return m; }
   tick(t){
     this.an.getFloatFrequencyData(this.spec);
     // доминирующая нота этого кадра
     let best=null,bestScore=0,bestDom=0;
     for(const n of this.notes){
-      const pk=this.peak(n.idx); if(pk<-85) continue;
+      const pk=this.peak(n.idx); if(!isFinite(pk)) continue;     // абсолютного порога нет: тихий вход (iPad, Safari) сравниваем относительно
       const prom=pk-this.base(n.idx), dom=pk-this.maxOther(n.idx);
       const score=Math.min(prom,dom+5);
       if(score>bestScore){bestScore=score;best=n;bestDom=dom;}
