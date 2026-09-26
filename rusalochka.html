@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Русалочка</title>
+<style>
+:root{--bg1:#bfeff5;--bg2:#1f6f9c;--ink:#0d3a55;--card:rgba(255,255,255,.6);--accent:#e63a2e}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:"Nunito","Segoe UI",system-ui,sans-serif;color:var(--ink);
+  background:radial-gradient(circle at 50% 20%,var(--bg1),var(--bg2) 85%)}
+body{display:flex;flex-direction:column;align-items:center;min-height:100vh}
+header{padding:18px 20px 0;text-align:center}
+h1{margin:0;font-size:30px;letter-spacing:.5px}
+h1 small{display:block;font-size:14px;font-weight:400;opacity:.75;margin-top:2px}
+.stage{flex:1;display:flex;align-items:center;justify-content:center;width:100%;max-width:520px;padding:4px 16px}
+svg{width:100%;height:auto;max-height:68vh;filter:drop-shadow(0 18px 28px rgba(0,40,70,.35))}
+.panel{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;background:var(--card);
+  backdrop-filter:blur(8px);border-radius:18px;padding:12px 16px;margin:0 16px 22px;box-shadow:0 6px 20px rgba(0,40,70,.15)}
+button{border:0;border-radius:999px;padding:10px 16px;font:inherit;font-weight:700;background:#0d3a55;color:#dff8ff;cursor:pointer;transition:transform .1s,background .2s}
+button:hover{transform:translateY(-1px)}
+button.on{background:var(--accent);color:#fff}
+label{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
+input[type=range]{width:110px;accent-color:var(--accent)}
+.meter{width:110px;height:10px;border-radius:5px;background:rgba(0,0,0,.12);overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#4fd1c5,#ffd166,#ff7a8a)}
+.status{font-size:14px;min-width:150px;text-align:center;font-weight:600}
+.hint{font-size:12px;opacity:.7;text-align:center;margin:-10px 16px 16px}
+.bubble{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#fff;border-radius:16px;padding:10px 16px;
+  font-size:15px;font-weight:700;box-shadow:0 8px 24px rgba(0,40,70,.25);opacity:0;transition:opacity .3s;pointer-events:none;max-width:90vw;color:#0d3a55}
+.bubble.show{opacity:1}
+/* пузырьки */
+.bub{animation:rise linear infinite;transform-box:fill-box;transform-origin:center}
+@keyframes rise{0%{transform:translateY(0);opacity:0}10%{opacity:.75}100%{transform:translateY(-470px);opacity:0}}
+.ray{animation:sway 7s ease-in-out infinite alternate;transform-origin:200px 0}
+@keyframes sway{from{transform:rotate(-2deg)}to{transform:rotate(2deg)}}
+</style>
+</head>
+<body>
+<header><h1>Русалочка <small>говорите — и она заговорит</small></h1></header>
+<div class="bubble" id="bubble"></div>
+
+<div class="stage">
+<svg id="char" viewBox="0 0 400 480" xmlns="http://www.w3.org/2000/svg" aria-label="Русалочка">
+  <defs>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a8ecf5"/><stop offset=".55" stop-color="#3aa6cf"/><stop offset="1" stop-color="#0e3f6e"/>
+    </linearGradient>
+    <linearGradient id="hair" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff5a3c"/><stop offset="1" stop-color="#c1281c"/>
+    </linearGradient>
+    <linearGradient id="hair2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff6f4a"/><stop offset="1" stop-color="#d9331f"/>
+    </linearGradient>
+    <linearGradient id="tail" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5fd66e"/><stop offset="1" stop-color="#1e8a52"/>
+    </linearGradient>
+    <radialGradient id="skin" cx="45%" cy="35%" r="75%">
+      <stop offset="0" stop-color="#ffe6d3"/><stop offset="1" stop-color="#f4c3a5"/>
+    </radialGradient>
+    <pattern id="scales" width="22" height="18" patternUnits="userSpaceOnUse">
+      <path d="M0,18 a11,11 0 0 1 22,0" fill="none" stroke="#e6fff7" stroke-width="1.6" opacity=".55"/>
+      <path d="M-11,9 a11,11 0 0 1 22,0 M11,9 a11,11 0 0 1 22,0" fill="none" stroke="#e6fff7" stroke-width="1.6" opacity=".55"/>
+    </pattern>
+    <clipPath id="mouthClip"><path id="mouthClipPath" d=""/></clipPath>
+    <clipPath id="frame"><rect x="0" y="0" width="400" height="480" rx="28"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#frame)">
+    <rect width="400" height="480" fill="url(#sea)"/>
+    <g class="ray" opacity=".22">
+      <polygon points="120,0 170,0 260,480 150,480" fill="#fff"/>
+      <polygon points="230,0 262,0 380,480 300,480" fill="#fff"/>
+    </g>
+    <!-- водоросли -->
+    <path d="M30,480 C20,420 60,400 40,340 C30,300 60,290 50,250" stroke="#0f6b4f" stroke-width="10" fill="none" stroke-linecap="round" opacity=".8"/>
+    <path d="M70,480 C80,440 50,420 70,380 C85,350 60,330 75,300" stroke="#158a63" stroke-width="8" fill="none" stroke-linecap="round" opacity=".8"/>
+    <path d="M360,480 C350,430 385,410 370,360 C360,330 385,310 375,280" stroke="#0f6b4f" stroke-width="9" fill="none" stroke-linecap="round" opacity=".8"/>
+    <!-- пузырьки -->
+    <circle class="bub" cx="60" cy="470" r="5" fill="#fff" style="animation-duration:9s;animation-delay:-2s"/>
+    <circle class="bub" cx="340" cy="470" r="7" fill="#fff" style="animation-duration:11s;animation-delay:-6s"/>
+    <circle class="bub" cx="110" cy="470" r="3.5" fill="#fff" style="animation-duration:7s;animation-delay:-4s"/>
+    <circle class="bub" cx="300" cy="470" r="4" fill="#fff" style="animation-duration:8.5s;animation-delay:-1s"/>
+    <circle class="bub" cx="30" cy="470" r="3" fill="#fff" style="animation-duration:10s;animation-delay:-7s"/>
+    <circle class="bub" cx="375" cy="470" r="3" fill="#fff" style="animation-duration:12s;animation-delay:-3s"/>
+    <g id="talkBubbles"></g>
+
+    <!-- волосы сзади -->
+    <g id="hairBack">
+      <path d="M108,190 C88,70 312,70 292,190 C326,270 338,370 306,452 C286,410 262,428 238,472 C220,412 196,440 172,478 C152,420 122,440 100,462 C74,350 86,262 108,190Z" fill="url(#hair)"/>
+      <path d="M130,200 C150,300 140,380 120,440" stroke="#ff9a7a" stroke-width="5" fill="none" opacity=".55" stroke-linecap="round"/>
+      <path d="M280,210 C262,300 276,380 296,430" stroke="#ff9a7a" stroke-width="5" fill="none" opacity=".55" stroke-linecap="round"/>
+    </g>
+
+    <!-- хвост -->
+    <g id="tail">
+      <path d="M126,396 C110,440 150,470 205,466 C262,462 296,440 328,458 C344,468 362,476 378,466 C366,452 360,436 350,414 C340,432 320,440 300,430 C286,412 280,402 274,396 Q200,420 126,396Z" fill="url(#tail)"/>
+      <path d="M126,396 C110,440 150,470 205,466 C262,462 296,440 328,458 C344,468 362,476 378,466 C366,452 360,436 350,414 C340,432 320,440 300,430 C286,412 280,402 274,396 Q200,420 126,396Z" fill="url(#scales)"/>
+      <path d="M330,458 L372,466 M336,448 L356,420" stroke="#e6fff7" stroke-width="1.8" opacity=".6"/>
+    </g>
+
+    <!-- шея, плечи, торс -->
+    <rect x="184" y="276" width="32" height="56" rx="14" fill="#efb99a"/>
+    <path d="M118,352 Q200,304 282,352 L276,404 Q200,424 124,404Z" fill="url(#skin)"/>
+    <!-- ракушки -->
+    <g fill="#9b5bc7">
+      <path d="M144,356 A30,30 0 0 1 204,356 L174,386Z"/>
+      <path d="M196,356 A30,30 0 0 1 256,356 L226,386Z"/>
+    </g>
+    <g stroke="#c99ae6" stroke-width="2" fill="none" opacity=".9">
+      <path d="M174,386 L150,352 M174,386 L162,342 M174,386 L174,338 M174,386 L186,342 M174,386 L198,352"/>
+      <path d="M226,386 L202,352 M226,386 L214,342 M226,386 L226,338 M226,386 L238,342 M226,386 L250,352"/>
+    </g>
+    <!-- жемчуг -->
+    <g fill="#fff8f0" stroke="#d9c7b8" stroke-width=".6">
+      <circle cx="158" cy="332" r="4.5"/><circle cx="169" cy="339" r="4.5"/><circle cx="181" cy="343" r="4.5"/><circle cx="193" cy="345" r="4.5"/>
+      <circle cx="207" cy="345" r="4.5"/><circle cx="219" cy="343" r="4.5"/><circle cx="231" cy="339" r="4.5"/><circle cx="242" cy="332" r="4.5"/>
+    </g>
+
+    <!-- голова -->
+    <g id="head">
+      <ellipse cx="200" cy="206" rx="78" ry="88" fill="url(#skin)"/>
+      <!-- ушки -->
+      <ellipse cx="124" cy="212" rx="9" ry="13" fill="#f2bfa0"/><ellipse cx="276" cy="212" rx="9" ry="13" fill="#f2bfa0"/>
+      <!-- щёчки -->
+      <ellipse cx="156" cy="242" rx="14" ry="8" fill="#ff8f9a" opacity=".4"/>
+      <ellipse cx="244" cy="242" rx="14" ry="8" fill="#ff8f9a" opacity=".4"/>
+
+      <g id="brows" stroke="#a52a1a" stroke-width="3.2" fill="none" stroke-linecap="round">
+        <path d="M150,178 Q170,167 190,175"/><path d="M250,178 Q230,167 210,175"/>
+      </g>
+
+      <g id="eyeL" class="eye">
+        <ellipse cx="170" cy="206" rx="16" ry="19" fill="#fff"/>
+        <g class="pupil"><circle cx="171" cy="208" r="11" fill="#2d8fa8"/><circle cx="171" cy="208" r="5.5" fill="#0b1a22"/><circle cx="175" cy="203" r="3.2" fill="#fff"/><circle cx="167" cy="212" r="1.6" fill="#fff" opacity=".8"/></g>
+        <path d="M153,199 Q170,184 187,199" stroke="#1d2a30" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <path d="M154,197 l-6,-5 M157,192 l-4,-6" stroke="#1d2a30" stroke-width="2.4" stroke-linecap="round"/>
+      </g>
+      <g id="eyeR" class="eye">
+        <ellipse cx="230" cy="206" rx="16" ry="19" fill="#fff"/>
+        <g class="pupil"><circle cx="229" cy="208" r="11" fill="#2d8fa8"/><circle cx="229" cy="208" r="5.5" fill="#0b1a22"/><circle cx="233" cy="203" r="3.2" fill="#fff"/><circle cx="225" cy="212" r="1.6" fill="#fff" opacity=".8"/></g>
+        <path d="M213,199 Q230,184 247,199" stroke="#1d2a30" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <path d="M246,197 l6,-5 M243,192 l4,-6" stroke="#1d2a30" stroke-width="2.4" stroke-linecap="round"/>
+      </g>
+
+      <path d="M199,230 q5,7 -2,10" stroke="#d99a7c" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+
+      <!-- рот -->
+      <path id="mouth" d="" fill="#5a1a24" stroke="#e2606b" stroke-width="5" stroke-linejoin="round"/>
+      <g clip-path="url(#mouthClip)">
+        <ellipse id="tongue" cx="200" cy="290" rx="16" ry="8" fill="#f07a8a"/>
+        <ellipse id="teeth" cx="200" cy="258" rx="14" ry="4" fill="#fff"/>
+      </g>
+
+      <!-- волосы спереди -->
+      <g id="hairFront">
+        <path d="M120,196 C112,108 176,90 200,114 C226,88 292,108 280,196 C266,156 246,146 226,164 C206,128 164,138 120,196Z" fill="url(#hair2)"/>
+        <path d="M134,186 C140,150 166,134 190,140" stroke="#ffb09a" stroke-width="3" fill="none" opacity=".7" stroke-linecap="round"/>
+        <!-- морская звезда -->
+        <g transform="translate(266,132) rotate(15)">
+          <path d="M0,-16 L5,-5 L16,-4 L7,4 L10,15 L0,9 L-10,15 L-7,4 L-16,-4 L-5,-5Z" fill="#ffd166" stroke="#e0a83a" stroke-width="1.5" stroke-linejoin="round"/>
+          <circle cx="0" cy="0" r="2" fill="#fff2c2"/><circle cx="0" cy="-8" r="1.3" fill="#fff2c2"/><circle cx="7" cy="-1" r="1.3" fill="#fff2c2"/><circle cx="-7" cy="-1" r="1.3" fill="#fff2c2"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>
+</div>
+
+<div class="panel">
+  <button id="micBtn">🎙 Включить микрофон</button>
+  <button id="demoBtn">▶ Демо</button>
+  <button id="sayBtn">🗣 Реплика</button>
+  <label>Чувствительность <input id="sens" type="range" min="0" max="1" step="0.01" value="0.6"></label>
+  <div class="meter"><i id="meter"></i></div>
+  <div class="status" id="status">Микрофон выключен</div>
+</div>
+<div class="hint">Держите пробел — персонаж «заговорит» без микрофона</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smooth=(cur,target,tau,dt)=>lerp(cur,target,1-Math.exp(-dt/tau));
+
+const S={raw:0,level:0,talk:0,open:0,mode:'idle',prevMode:'idle',
+  blinkT:-1,nextBlink:1.5,gaze:{x:0,y:0,tx:0,ty:0,next:1.5},
+  demoTarget:0,demoNext:0,keyHeld:false,bubT:0};
+let audio=null;
+
+// ---------- аудио ----------
+async function startMic(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const src=ctx.createMediaStreamSource(stream);
+    const analyser=ctx.createAnalyser(); analyser.fftSize=1024; analyser.smoothingTimeConstant=0;
+    src.connect(analyser);
+    audio={ctx,stream,analyser,data:new Uint8Array(analyser.fftSize)};
+    if(ctx.state==='suspended') await ctx.resume();
+    setMode('mic'); $('#micBtn').classList.add('on'); $('#micBtn').textContent='⏹ Выключить микрофон';
+  }catch(e){
+    console.error(e);
+    $('#status').textContent='Нет доступа к микрофону';
+    showBubble('Микрофон не дали… Нажмите «Демо» или держите пробел');
+  }
+}
+function stopMic(){
+  if(audio){ audio.stream.getTracks().forEach(t=>t.stop()); audio.ctx.close(); audio=null; }
+  $('#micBtn').classList.remove('on'); $('#micBtn').textContent='🎙 Включить микрофон';
+  if(S.mode==='mic') setMode('idle');
+}
+function readMic(){
+  const {analyser,data}=audio; analyser.getByteTimeDomainData(data);
+  let sum=0; for(let i=0;i<data.length;i++){const v=(data[i]-128)/128; sum+=v*v;}
+  return Math.sqrt(sum/data.length);
+}
+function micTarget(rms){
+  const sens=parseFloat($('#sens').value);
+  const thr=0.003+(1-sens)*0.03, range=0.05+(1-sens)*0.3;
+  return clamp((rms-thr)/range,0,1);
+}
+function demoLevel(dt){
+  S.demoNext-=dt;
+  if(S.demoNext<=0){
+    if(Math.random()<0.16){S.demoTarget=0;S.demoNext=0.3+Math.random()*0.5;}
+    else{S.demoTarget=0.35+Math.random()*0.65;S.demoNext=0.07+Math.random()*0.15;}
+  }
+  return S.demoTarget;
+}
+function setMode(m){ if(m!==S.mode) S.prevMode=S.mode; S.mode=m; $('#demoBtn').classList.toggle('on',m==='demo'); }
+
+// ---------- реплики ----------
+const PHRASES=['Я так хочу увидеть мир над волнами!','Слышите? Это шумит море.',
+ 'На дне морском сегодня тихо-тихо…','Каждая жемчужина — это чья-то сказка.',
+ 'Идёмте со мной, я покажу вам коралловый сад!','Говорят, у людей вместо хвоста — две ноги. Странно!'];
+function showBubble(t,ms=3500){const b=$('#bubble');b.textContent=t;b.classList.add('show');clearTimeout(b._t);b._t=setTimeout(()=>b.classList.remove('show'),ms);}
+function say(){
+  const text=PHRASES[Math.floor(Math.random()*PHRASES.length)];
+  showBubble(text,5000);
+  const back=S.mode==='speak'?S.prevMode:S.mode;
+  if('speechSynthesis' in window){
+    speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(text); u.lang='ru-RU'; u.pitch=1.4; u.rate=1.0;
+    const v=speechSynthesis.getVoices().find(v=>v.lang.startsWith('ru')); if(v) u.voice=v;
+    u.onstart=()=>setMode('speak');
+    u.onend=u.onerror=()=>{ if(S.mode==='speak'){S.mode=back;$('#demoBtn').classList.toggle('on',back==='demo');} };
+    setMode('speak'); speechSynthesis.speak(u);
+    setTimeout(()=>{ if(S.mode==='speak'&&!speechSynthesis.speaking){S.mode=back;} },2500);
+  }else{ setMode('speak'); setTimeout(()=>{S.mode=back;},3000); }
+}
+
+// ---------- UI ----------
+$('#micBtn').onclick=()=>audio?stopMic():startMic();
+$('#demoBtn').onclick=()=>{ if(S.mode==='demo'){setMode(audio?'mic':'idle');} else setMode('demo'); };
+$('#sayBtn').onclick=say;
+addEventListener('keydown',e=>{ if(e.code==='Space'){e.preventDefault();S.keyHeld=true;} });
+addEventListener('keyup',e=>{ if(e.code==='Space')S.keyHeld=false; });
+
+// ---------- анимация ----------
+const el={head:$('#head'),brows:$('#brows'),mouth:$('#mouth'),clip:$('#mouthClipPath'),
+  tongue:$('#tongue'),teeth:$('#teeth'),hairBack:$('#hairBack'),hairFront:$('#hairFront'),tail:$('#tail'),
+  eyes:[$('#eyeL'),$('#eyeR')],pupils:document.querySelectorAll('.pupil'),meter:$('#meter'),status:$('#status'),
+  talkBubbles:$('#talkBubbles')};
+const EYE=[{x:170,y:206},{x:230,y:206}];
+
+// пузырьки изо рта, когда говорит
+function spawnBubble(){
+  const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+  const x=205+Math.random()*30, r=2+Math.random()*3;
+  c.setAttribute('cx',x); c.setAttribute('cy',255); c.setAttribute('r',r); c.setAttribute('fill','#fff'); c.setAttribute('opacity','.8');
+  el.talkBubbles.appendChild(c);
+  const t0=performance.now();
+  const tick=now=>{const p=(now-t0)/2200; if(p>=1){c.remove();return;}
+    c.setAttribute('cy',255-p*240); c.setAttribute('cx',x+Math.sin(p*9)*8); c.setAttribute('opacity',(0.8*(1-p)).toFixed(2)); requestAnimationFrame(tick);};
+  requestAnimationFrame(tick);
+}
+
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now; const t=now/1000;
+  let target=0;
+  if(S.mode==='mic'&&audio){ S.raw=readMic(); target=micTarget(S.raw); }
+  else if(S.mode==='demo'||S.mode==='speak'){ target=demoLevel(dt); }
+  if(S.keyHeld) target=Math.max(target,demoLevel(dt));
+
+  S.level=smooth(S.level,target,target>S.level?0.025:0.09,dt);
+  S.talk=smooth(S.talk,S.level>0.08?1:0,0.25,dt);
+  const flutter=0.82+0.18*Math.sin(t*23)*Math.sin(t*7.3);
+  S.open=smooth(S.open,S.level*flutter,0.03,dt);
+
+  S.nextBlink-=dt;
+  if(S.nextBlink<=0){S.blinkT=0;S.nextBlink=Math.random()<0.25?0.35:2+Math.random()*4;}
+  let blink=0;
+  if(S.blinkT>=0){S.blinkT+=dt;const p=S.blinkT/0.18;blink=p>=1?0:Math.sin(Math.PI*p);if(p>=1)S.blinkT=-1;}
+
+  S.gaze.next-=dt;
+  if(S.gaze.next<=0){S.gaze.tx=(Math.random()*2-1);S.gaze.ty=(Math.random()*2-1)*0.6;S.gaze.next=1.2+Math.random()*3;}
+  S.gaze.x=smooth(S.gaze.x,S.gaze.tx,0.25,dt); S.gaze.y=smooth(S.gaze.y,S.gaze.ty,0.25,dt);
+
+  S.bubT-=dt; if(S.talk>0.5&&S.level>0.5&&S.bubT<=0){spawnBubble();S.bubT=0.35+Math.random()*0.5;}
+
+  render(t,blink);
+  el.meter.style.width=(S.level*100).toFixed(0)+'%';
+  el.status.textContent= S.mode==='mic'?(S.talk>0.5?'Говорит 🗣':'Слушаю…'):
+    S.mode==='demo'?'Демо-режим':S.mode==='speak'?'Говорит сама 🗣':(S.keyHeld?'Говорит (пробел)':'Микрофон выключен');
+  requestAnimationFrame(frame);
+}
+
+function render(t,blink){
+  const o=S.open, L=S.level, tk=S.talk;
+  // рот
+  const y0=260, cy=y0+o*4, top=y0-o*9, bot=y0+5+o*36;
+  const d=`M183,${cy} Q200,${top} 217,${cy} Q200,${bot} 183,${cy} Z`;
+  el.mouth.setAttribute('d',d); el.clip.setAttribute('d',d);
+  el.tongue.setAttribute('cy',bot-4); el.tongue.setAttribute('ry',4+o*10);
+  el.teeth.setAttribute('cy',top+3); el.teeth.setAttribute('opacity',o>0.25?1:0);
+
+  // голова
+  const tilt=Math.sin(t*0.7)*2+Math.sin(t*4.6)*3.5*tk*L;
+  const bob=Math.sin(t*1.3)*3-Math.abs(Math.sin(t*8.2))*5*L;
+  el.head.setAttribute('transform',`translate(0 ${bob.toFixed(2)}) rotate(${tilt.toFixed(2)} 200 330)`);
+  // волосы плывут
+  const hx=Math.sin(t*0.9)*4, hy=Math.sin(t*1.3+1)*3;
+  el.hairBack.setAttribute('transform',`translate(${hx.toFixed(2)} ${hy.toFixed(2)}) skewX(${(Math.sin(t*0.6)*2).toFixed(2)})`);
+  el.hairFront.setAttribute('transform',`translate(${(hx*0.4).toFixed(2)} ${(Math.sin(t*1.1)*1.5).toFixed(2)})`);
+  // хвост качается
+  const sw=Math.sin(t*1.1)*3+Math.sin(t*6)*3*L;
+  el.tail.setAttribute('transform',`rotate(${sw.toFixed(2)} 200 396)`);
+  // брови
+  el.brows.setAttribute('transform',`translate(0 ${(-7*L).toFixed(2)})`);
+  // глаза
+  const widen=1+0.1*clamp((L-0.7)/0.3,0,1);
+  el.eyes.forEach((e,i)=>{const c=EYE[i];
+    e.setAttribute('transform',`translate(${c.x} ${c.y}) scale(${widen} ${((1-blink*0.96)*widen).toFixed(3)}) translate(${-c.x} ${-c.y})`);});
+  const gx=S.gaze.x*4, gy=S.gaze.y*3-1.5*tk;
+  el.pupils.forEach(p=>p.setAttribute('transform',`translate(${gx.toFixed(2)} ${gy.toFixed(2)})`));
+}
+requestAnimationFrame(frame);
+if('speechSynthesis' in window) speechSynthesis.getVoices();
+</script>
+</body>
+</html>
