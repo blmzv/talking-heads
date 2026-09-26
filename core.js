@@ -1,6 +1,5 @@
-/* Общий движок говорящих персонажей.
-   Страница задаёт window.CHAR = {id, name, gen, roots:{me, others:[{root,gen}], release:[]},
-   phrases, tts:{pitch,rate}, defaultVoice:'any'|'female'|'male', codeword:bool, render(t,blink,S,dt)} */
+/* Общий движок говорящих персонажей. Требует tones.js.
+   Страница задаёт window.CHAR = {id, name, gen, phrases, tts:{pitch,rate}, defaultVoice:'any'|'female'|'male', render(t,blink,S,dt)} */
 (function(){
 const C=window.CHAR;
 const $=s=>document.querySelector(s);
@@ -24,7 +23,7 @@ function log(msg){
   box.querySelector('#logClose').onclick=()=>{box.hidden=true;};
   box.querySelector('#logClear').onclick=()=>{LOG.length=0;box.querySelector('pre').textContent='';};
   box.querySelector('#logCopy').onclick=async()=>{
-    const txt=['== '+C.name+' · '+navigator.userAgent,'voiceGate='+voiceGate+' cw='+S.cw+' floor='+S.floor+' mode='+S.mode].concat(LOG).join('\n');
+    const txt=['== '+C.name+' · '+navigator.userAgent,'voiceGate='+voiceGate+' sig='+S.sig+' floor='+S.floor+' mode='+S.mode].concat(LOG).join('\n');
     try{ await navigator.clipboard.writeText(txt); showBubble('Журнал скопирован',2000); }
     catch(e){ const r=document.createRange(); r.selectNodeContents(box.querySelector('pre')); const sel=getSelection(); sel.removeAllRanges(); sel.addRange(r); showBubble('Выделено — скопируйте вручную',3000); }
   };
@@ -35,15 +34,15 @@ function log(msg){
 
 const S={raw:0,level:0,talk:0,open:0,mode:'idle',prevMode:'idle',
   blinkT:-1,nextBlink:1.5,gaze:{x:0,y:0,tx:0,ty:0,next:1.5},
-  demoTarget:0,demoNext:0,keyHeld:false,cw:false,floor:'none',
+  demoTarget:0,demoNext:0,keyHeld:false,sig:false,floor:'none',
   pitch:-1,voice:null,voiceT:-10,vm:0.5,bubT:0,gated:false};
 let audio=null;
-const DEV_KEY='th_dev_'+C.id, VOICE_KEY='th_voice_'+C.id;
+const DEV_KEY='th_dev_'+C.id, VOICE_KEY='th_voice2_'+C.id;
 const SPLIT_HZ=165;           // ниже — мужской, выше — женский
 let voiceGate=load(VOICE_KEY,C.defaultVoice||'any');
 $('#voiceSel').value=voiceGate;
 $('#voiceSel').onchange=e=>{voiceGate=e.target.value;save(VOICE_KEY,voiceGate);log('voiceGate → '+voiceGate);};
-log('старт: voiceGate='+voiceGate+' codeword='+!!C.codeword+' SR='+!!(window.SpeechRecognition||window.webkitSpeechRecognition));
+log('старт: voiceGate='+voiceGate);
 
 // ---------- аудио ----------
 function savedDevice(){ return load(DEV_KEY,''); }
@@ -59,7 +58,7 @@ async function listDevices(){
 async function startMic(deviceId){
   try{
     deviceId=deviceId||savedDevice();
-    const audioC={echoCancellation:true,noiseSuppression:true,autoGainControl:false};
+    const audioC={echoCancellation:false,noiseSuppression:false,autoGainControl:false};
     if(deviceId) audioC.deviceId={exact:deviceId};
     let stream;
     try{ stream=await navigator.mediaDevices.getUserMedia({audio:audioC}); }
@@ -70,6 +69,7 @@ async function startMic(deviceId){
     const analyser=ctx.createAnalyser(); analyser.fftSize=2048; analyser.smoothingTimeConstant=0;
     src.connect(analyser);
     audio={ctx,stream,analyser,data:new Float32Array(analyser.fftSize),ds:new Float32Array(analyser.fftSize/2)};
+    audio.det=new ThToneDetector(analyser,ctx.sampleRate,onTone);
     if(ctx.state==='suspended') await ctx.resume();
     setMode('mic'); $('#micBtn').classList.add('on'); $('#micBtn').textContent='⏹ Выключить микрофон';
     const used=stream.getAudioTracks()[0]; save(DEV_KEY,used.getSettings().deviceId||'');
@@ -146,61 +146,33 @@ function say(){
   }else{ setMode('speak'); setTimeout(()=>{S.mode=back;},3000); }
 }
 
-// ---------- кодовое слово ----------
-let rec=null, recSeen='', recRestartT=null, otherGen='';
-const norm=t=>t.toLowerCase().replace(/ё/g,'е');
-const HINT_DEFAULT='Держите пробел или палец на персонаже — «заговорит» без микрофона';
+// ---------- сигналы (передача слова перезвоном) ----------
+let otherGen='';
+const HINT_DEFAULT='Тап по персонажу — его перезвон: слово переходит к нему на всех устройствах';
+const HINT_OFF='Держите пробел или палец на персонаже — «заговорит» без микрофона';
+const SIG_KEY='th_sig_'+C.id;
 function setFloor(f,who){
   if(f!==S.floor) log('слово: '+S.floor+' → '+f+(who?' ('+who+')':''));
   S.floor=f; if(who) otherGen=who;
-  $('#char').classList.toggle('muted',S.cw&&f!=='me');
-  const b=$('#floor'); b.hidden=!S.cw; b.classList.toggle('me',f==='me');
+  $('#char').classList.toggle('muted',S.sig&&f!=='me');
+  const b=$('#floor'); b.hidden=!S.sig; b.classList.toggle('me',f==='me');
   b.textContent= f==='me'?'Слово у '+C.gen:f==='other'?'Слово у '+otherGen:'Слово свободно';
 }
-function handleTranscript(tr,isFinal){
-  const t=norm(tr);
-  const fresh=t.startsWith(recSeen)?t.slice(recSeen.length):t;
-  recSeen=isFinal?'':t;
-  if(isFinal) log('услышано: «'+t.trim()+'»'); else if(t!==S._lastInterim){ S._lastInterim=t; log('~ '+t.trim()); }
-  let bestIdx=-1, action=null;
-  const lastMatch=(root,str)=>{ if(typeof root==='string') return str.lastIndexOf(root);
-    const re=new RegExp(root.source,'g'+(root.flags.replace('g',''))); let m,idx=-1; while((m=re.exec(str))){idx=m.index; if(m[0].length===0) re.lastIndex++;} return idx; };
-  const consider=(root,act)=>{const i=lastMatch(root,fresh); if(i>bestIdx){bestIdx=i;action=act;}};
-  consider(C.roots.me,()=>setFloor('me'));
-  (C.roots.others||[]).forEach(o=>consider(o.root,()=>setFloor('other',o.gen)));
-  (C.roots.release||[]).forEach(r=>consider(r,()=>setFloor('none')));
-  if(action) action();
+function onTone(key,score){
+  log('сигнал: '+key+' ('+score.toFixed(0)+' дБ)');
+  if(!S.sig) return;
+  if(key===C.id) setFloor('me');
+  else if(key==='silence') setFloor('none');
+  else setFloor('other',(TH_TONES[key]||{}).gen||key);
 }
-function runRec(){
-  if(!S.cw) return;
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  rec=new SR(); rec.lang='ru-RU'; rec.continuous=true; rec.interimResults=true; rec.maxAlternatives=1;
-  rec.onresult=e=>{ for(let i=e.resultIndex;i<e.results.length;i++){ const r=e.results[i]; handleTranscript(r[0].transcript,r.isFinal); } };
-  rec.onstart=()=>log('распознавание: старт');
-  rec.onerror=e=>{
-    log('распознавание ОШИБКА: '+e.error);
-    if(e.error==='not-allowed'||e.error==='service-not-allowed'){ stopCW(); showBubble('Распознавание речи запрещено в браузере'); }
-    else if(e.error==='network'){ showBubble('Распознаванию нужен интернет',2500); }
-  };
-  rec.onend=()=>{ log('распознавание: конец'+(S.cw?', перезапуск':'')); recSeen=''; if(S.cw){ clearTimeout(recRestartT); recRestartT=setTimeout(runRec,250); } };
-  try{ rec.start(); }catch(err){ console.warn(err); }
-}
-function startCW(){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ showBubble('В этом браузере нет распознавания речи. Попробуйте Safari или Chrome.'); return; }
-  S.cw=true; $('#cwBtn').classList.add('on'); log('кодовое слово: ВКЛ'); setFloor('none');
-  $('#hint').textContent='Скажите имя персонажа — слово перейдёт к нему. Тап по персонажу тоже передаёт слово.';
-  if(!audio) startMic();
-  runRec();
-  const names=[C.name].concat((C.roots.others||[]).map(o=>o.name)).map(n=>'«'+n+'»').join(', ');
-  showBubble('Жду имена: '+names,3000);
-}
-function stopCW(){
-  S.cw=false; $('#cwBtn').classList.remove('on'); log('кодовое слово: ВЫКЛ'); clearTimeout(recRestartT);
-  if(rec){ try{rec.onend=null; rec.stop();}catch(e){} rec=null; }
+function setSig(on){
+  S.sig=!!on; save(SIG_KEY,S.sig?'1':'0');
+  $('#sigBtn').classList.toggle('on',S.sig);
+  $('#hint').textContent=S.sig?HINT_DEFAULT:HINT_OFF;
+  log('слово по сигналу: '+(S.sig?'ВКЛ':'ВЫКЛ'));
   setFloor('none');
-  $('#hint').textContent=HINT_DEFAULT;
 }
+function chimeMe(){ thPlayTone(C.id); setFloor('me'); }
 
 // ---------- UI ----------
 $('#micBtn').onclick=()=>audio?stopMic():startMic();
@@ -208,11 +180,12 @@ $('#devSel').onchange=e=>{ save(DEV_KEY,e.target.value); startMic(e.target.value
 if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange',listDevices);
 $('#demoBtn').onclick=()=>{ if(S.mode==='demo'){setMode(audio?'mic':'idle');} else setMode('demo'); };
 $('#sayBtn').onclick=say;
-if(C.codeword){ $('#cwBtn').onclick=()=>S.cw?stopCW():startCW(); } else { $('#cwBtn').hidden=true; }
+$('#sigBtn').onclick=()=>setSig(!S.sig);
+setSig(load(SIG_KEY,'1')==='1');
 addEventListener('keydown',e=>{ if(e.code==='Space'){e.preventDefault();S.keyHeld=true;} });
 addEventListener('keyup',e=>{ if(e.code==='Space')S.keyHeld=false; });
 const svgEl=$('#char'); svgEl.style.touchAction='none';
-svgEl.addEventListener('pointerdown',e=>{e.preventDefault(); log('тап по персонажу'); if(S.cw){setFloor(S.floor==='me'?'none':'me');} else S.keyHeld=true;});
+svgEl.addEventListener('pointerdown',e=>{e.preventDefault(); log('тап по персонажу'); if(S.sig){chimeMe();} else S.keyHeld=true;});
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>svgEl.addEventListener(ev,()=>{S.keyHeld=false;}));
 svgEl.addEventListener('contextmenu',e=>e.preventDefault());
 if('speechSynthesis' in window) speechSynthesis.getVoices();
@@ -229,7 +202,8 @@ function frame(now){
     if(S.pitch>0&&rawTarget>0.05){ S.vm=smooth(S.vm,S.pitch<SPLIT_HZ?1:0,0.06,dt); S.voiceT=t; S.voice=S.vm>0.5?'male':'female'; }
     if(t-S.voiceT>0.6){ S.voice=null; S.vm=0.5; }
     if(voiceGate!=='any'&&S.voice!==voiceGate){ target=0; S.gated=rawTarget>0.1; }
-    if(S.cw&&S.floor!=='me') target=0;
+    audio.det.tick(t);
+    if(S.sig&&S.floor!=='me') target=0;
   }
   else if(S.mode==='demo'||S.mode==='speak'){ target=demoLevel(dt); }
   if(S.keyHeld) target=Math.max(target,demoLevel(dt));
@@ -251,7 +225,7 @@ function frame(now){
     S._acc=S._acc||{n:0,p:[],lvl:0,g:0,t:0}; const A=S._acc; A.t+=dt;
     if(rawTarget>0.05){A.n++;A.lvl=Math.max(A.lvl,rawTarget);if(S.pitch>0)A.p.push(Math.round(S.pitch));if(S.gated)A.g++;}
     if(A.t>=0.5){ if(A.n>0){ const med=A.p.length?A.p.sort((a,b)=>a-b)[A.p.length>>1]:'-';
-        log('звук: пик='+A.lvl.toFixed(2)+' тон≈'+med+'Гц голос='+(S.voice||'?')+' voiced='+A.p.length+'/'+A.n+(A.g?' ОТСЕЧЕНО':'')+(S.cw?' слово='+S.floor:'')+' open='+S.open.toFixed(2)); }
+        log('звук: пик='+A.lvl.toFixed(2)+' тон≈'+med+'Гц голос='+(S.voice||'?')+' voiced='+A.p.length+'/'+A.n+(A.g?' ОТСЕЧЕНО':'')+(S.sig?' слово='+S.floor:'')+(audio.det&&audio.det.lastScore>5?' тон='+audio.det.lastKey+':'+audio.det.lastScore.toFixed(0):'')+' open='+S.open.toFixed(2)); }
       S._acc={n:0,p:[],lvl:0,g:0,t:0}; }
   }
   C.render(t,blink,S,dt);
@@ -261,12 +235,12 @@ function frame(now){
   let st;
   if(S.mode==='mic'){
     if(S.gated) st='Не мой голос';
-    else if(S.cw) st= S.floor==='me'?(S.talk>0.5?'Говорит 🗣':'Слово у меня'):S.floor==='other'?'Слово у '+otherGen:'Ждём имя…';
+    else if(S.sig) st= S.floor==='me'?(S.talk>0.5?'Говорит 🗣':'Слово у меня'):S.floor==='other'?'Слово у '+otherGen:'Ждём сигнал…';
     else st= S.talk>0.5?'Говорит 🗣':'Слушаю…';
   } else st= S.mode==='demo'?'Демо-режим':S.mode==='speak'?'Говорит сам(а) 🗣':(S.keyHeld?'Говорит (удержание)':'Микрофон выключен');
   status.textContent=st;
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__TH={S,handleTranscript,setFloor,detectPitch};
+window.__TH={S,setFloor,detectPitch,onTone,get audio(){return audio;}};
 })();

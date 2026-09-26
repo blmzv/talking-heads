@@ -179,14 +179,14 @@ input[type=range]{width:110px;accent-color:var(--accent)}
   <select id="voiceSel" title="На какой голос реагировать"><option value="any">Голос: любой</option><option value="female">Голос: женский</option><option value="male">Голос: мужской</option></select>
   <button id="demoBtn">▶ Демо</button>
   <button id="sayBtn">🗣 Реплика</button>
-  <button id="cwBtn">🗝 Кодовое слово</button>
+  <button id="sigBtn">🔔 Слово по сигналу</button>
   <div class="floor" id="floor" hidden></div>
   <label>Чувствительность <input id="sens" type="range" min="0" max="1" step="0.01" value="0.6"></label>
   <div class="meter"><i id="meter"></i></div>
   <span class="pitch" id="pitch"></span>
   <div class="status" id="status">Микрофон выключен</div>
 </div>
-<div class="hint" id="hint">Держите пробел или палец на персонаже — «заговорит» без микрофона</div>
+<div class="hint" id="hint">Тап по персонажу — его перезвон: слово переходит к нему на всех устройствах</div>
 
 <script>
 const $=s=>document.querySelector(s);
@@ -224,10 +224,10 @@ function render(t,blink,S,dt){
   el.pupils.forEach(p=>p.setAttribute('transform',`translate(${gx.toFixed(2)} ${gy.toFixed(2)})`));
 }
 window.CHAR={id:'prince',name:'Принц',gen:'Принца',
-  roots:{me:/принц|принс/,others:[{root:/русало[чш]|русалк/,gen:'Русалочки',name:'Русалочка'},{root:/бел+[аоые]?[\s-]*снеж|снежк/,gen:'Белоснежки',name:'Белоснежка'}],release:[]},
   phrases:['Я искал вас по всему королевству!','Позвольте пригласить вас на танец.','Мой конь устал, а я — нет!','Клянусь честью принца!','Кто здесь самая прекрасная? Не отвечайте, я знаю.','Дракон? Какой дракон? А, этот… Уже улетел.'],
-  tts:{pitch:0.7,rate:0.95}, defaultVoice:'male', codeword:false, render};
+  tts:{pitch:0.7,rate:0.95}, defaultVoice:'any', render};
 </script>
+<script src="tones.js"></script>
 <script src="core.js"></script>
 </body>
 </html>
