@@ -45,11 +45,11 @@ window.ThToneDetector=class{
     this.spec=new Float32Array(analyser.frequencyBinCount);
     this.binHz=sampleRate/analyser.fftSize;
     this.minProm=opts.minProm||10; this.minDom=opts.minDom||5;
-    this.needFrames=opts.needFrames||4; this.maxSpan=opts.maxSpan||1.6; this.refractory=opts.refractory||1.0;
+    this.holdSec=opts.holdSec||0.06; this.maxSpan=opts.maxSpan||1.8; this.refractory=opts.refractory||1.0; this.onNote=opts.onNote||null;
     this.bandLo=Math.round(1300/this.binHz); this.bandHi=Math.round(4000/this.binHz);
     this.notes=[]; for(const k in TH_TONES) TH_TONES[k].f.forEach(f=>{ if(!this.notes.some(n=>Math.abs(n.f-f)<1)) this.notes.push({f,idx:Math.round(f/this.binHz)}); });
     this.prog={}; for(const k in TH_TONES) this.prog[k]={step:0,t:0,frames:0};
-    this.curNote=null; this.curFrames=0; this.lastT=-10; this.lastScore=0; this.lastKey=null; this.lastDom=0; this.lastNote=null;
+    this.curNote=null; this.curSince=0; this.curDone=false; this.lastT=-10; this.lastScore=0; this.lastKey=null; this.lastDom=0; this.lastNote=null;
   }
   peak(idx){ const s=this.spec; let m=-Infinity; for(let i=idx-1;i<=idx+1;i++) if(s[i]>m) m=s[i]; return m; }
   // -Infinity в тишине (Safari) → считаем очень тихим фоном
@@ -72,19 +72,21 @@ window.ThToneDetector=class{
       if(score>bestScore){bestScore=score;best=n;bestDom=dom;}
     }
     const heard=(best&&bestScore>=this.minProm&&bestDom>=this.minDom)?best:null;
-    if(heard&&this.curNote===heard) this.curFrames++; else {this.curNote=heard;this.curFrames=heard?1:0;}
+    if(heard!==this.curNote){ this.curNote=heard; this.curSince=t; this.curDone=false; }
     this.lastScore=heard?bestScore:0; this.lastDom=bestDom; this.lastNote=heard?Math.round(heard.f):null;
-    const stable=heard&&this.curFrames===this.needFrames;   // нота подтверждена ровно в этот кадр
+    // нота подтверждена, когда держится holdSec (по времени, не по кадрам) — один раз за удержание
+    const stable=heard&&!this.curDone&&(t-this.curSince)>=this.holdSec;
+    if(stable){ this.curDone=true; if(this.onNote) this.onNote(Math.round(heard.f),bestScore,bestDom); }
     // прогресс по аккордам
     let progressKey=null, progressStep=0;
     for(const k in TH_TONES){
       const P=this.prog[k], fs=TH_TONES[k].f;
-      if(P.step>0&&t-P.t>this.maxSpan){P.step=0;}
+      if(P.step>0&&t-P.t>this.maxSpan){ if(this.onNote) this.onNote(0,0,0,k+' сброс по времени'); P.step=0; }
       if(stable){
         if(Math.abs(heard.f-fs[P.step])<1){ P.step++; P.t=t;
           if(P.step===fs.length){ P.step=0; if(t-this.lastT>this.refractory){ this.lastT=t; this.on(k,bestScore); } }
         } else if(Math.abs(heard.f-fs[0])<1){ P.step=1; P.t=t; }   // начали заново с первой ноты
-        else { P.step=0; }                                          // чужая нота между ступенями — сброс (защита от глиссандо)
+        else if(P.step>0){ if(this.onNote) this.onNote(0,0,0,k+' сброс: чужая нота'); P.step=0; }   // защита от глиссандо
       }
       if(P.step>progressStep){progressStep=P.step;progressKey=k;}
     }

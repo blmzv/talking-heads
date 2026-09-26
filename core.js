@@ -1,7 +1,7 @@
 /* Общий движок говорящих персонажей (одна сцена, персонажи переключаются без перезагрузки).
    Требует tones.js и chars.js. Страница задаёт window.TH_DEFAULT — персонаж по умолчанию. */
 (function(){
-const TH_VERSION='v21';
+const TH_VERSION='v22';
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -97,7 +97,7 @@ async function startMic(deviceId,quiet){
     const analyser=ctx.createAnalyser(); analyser.fftSize=4096; analyser.smoothingTimeConstant=0;
     src.connect(analyser);
     audio={ctx,stream,analyser,data:new Float32Array(analyser.fftSize)};
-    audio.det=new ThToneDetector(analyser,ctx.sampleRate,onTone);
+    audio.det=new ThToneDetector(analyser,ctx.sampleRate,onTone,{onNote:(f,score,dom,msg)=>log(msg?('  '+msg):('  нота '+f+' Гц ✓ ('+score.toFixed(0)+' дБ, dom '+dom.toFixed(0)+')'))});
     if(ctx.state!=='running'){ try{ await ctx.resume(); }catch(e){} }
     ctx.onstatechange=()=>log('audio ctx: '+ctx.state);
     S.needTap=ctx.state!=='running';
