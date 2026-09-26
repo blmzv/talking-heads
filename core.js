@@ -1,7 +1,7 @@
 /* Общий движок говорящих персонажей (одна сцена, персонажи переключаются без перезагрузки).
    Требует tones.js и chars.js. Страница задаёт window.TH_DEFAULT — персонаж по умолчанию. */
 (function(){
-const TH_VERSION='v22';
+const TH_VERSION='v23';
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -97,7 +97,7 @@ async function startMic(deviceId,quiet){
     const analyser=ctx.createAnalyser(); analyser.fftSize=4096; analyser.smoothingTimeConstant=0;
     src.connect(analyser);
     audio={ctx,stream,analyser,data:new Float32Array(analyser.fftSize)};
-    audio.det=new ThToneDetector(analyser,ctx.sampleRate,onTone,{onNote:(f,score,dom,msg)=>log(msg?('  '+msg):('  нота '+f+' Гц ✓ ('+score.toFixed(0)+' дБ, dom '+dom.toFixed(0)+')'))});
+    audio.det=new ThToneDetector(analyser,ctx.sampleRate,onTone,{onNote:msg=>log('  '+msg)});
     if(ctx.state!=='running'){ try{ await ctx.resume(); }catch(e){} }
     ctx.onstatechange=()=>log('audio ctx: '+ctx.state);
     S.needTap=ctx.state!=='running';
@@ -158,7 +158,7 @@ function say(){
 
 // ---------- сигналы (передача слова аккордом) ----------
 let otherGen='';
-const HINT_DEFAULT='Тап по персонажу — его аккорд: слово переходит к нему на всех устройствах';
+const HINT_DEFAULT='Тап по персонажу — его гудки: слово переходит к нему на всех устройствах';
 const HINT_OFF='Держите пробел или палец на персонаже — «заговорит» без микрофона';
 function setFloor(f,who){
   if(f!==S.floor) log('слово: '+S.floor+' → '+f+(who?' ('+who+')':''));
@@ -168,7 +168,7 @@ function setFloor(f,who){
   b.textContent= f==='me'?'Слово у '+C.gen:f==='other'?'Слово у '+otherGen:'Слово свободно';
 }
 function onTone(key,score){
-  log('сигнал: '+key+' ('+score.toFixed(0)+' дБ)');
+  log('сигнал: '+key);
   if(!S.sig) return;
   if(key===C.id) setFloor('me');
   else if(key==='silence') setFloor('none');
@@ -246,13 +246,13 @@ function frame(now){
   if(S.mode==='mic'&&audio){
     S._acc=S._acc||{n:0,lvl:0,t:0}; const A=S._acc; A.t+=dt;
     if(rawTarget>0.05){A.n++;A.lvl=Math.max(A.lvl,rawTarget);}
-    if(A.t>=0.5){ if(A.n>0) log('звук: пик='+A.lvl.toFixed(2)+' вход='+(S.raw*1000).toFixed(0)+' gain='+S.gain.toFixed(1)+(S.sig?' слово='+S.floor:'')+(audio.det.lastNote?' нота='+audio.det.lastNote:'')+(audio.det.lastStep>0?' аккорд='+audio.det.lastKey+' '+audio.det.lastStep+'/3':'')+' open='+S.open.toFixed(2));
+    if(A.t>=0.5){ if(A.n>0) log('звук: пик='+A.lvl.toFixed(2)+' вход='+(S.raw*1000).toFixed(0)+' gain='+S.gain.toFixed(1)+(S.sig?' слово='+S.floor:'')+(audio.det.hearing?' нота✓':'')+(audio.det.lastStep>0?' гудков='+audio.det.lastStep:'')+' open='+S.open.toFixed(2));
       S._acc={n:0,lvl:0,t:0}; }
   }
   if(render) render(t,blink,S,dt);
 
   meter.style.width=(S.level*100).toFixed(0)+'%';
-  if(S.mode==='mic'&&audio&&audio.det&&(audio.det.lastNote||audio.det.lastStep>0)){ const d=audio.det; pitchEl.textContent='🎵 '+(d.lastNote?d.lastNote+' Гц ':'')+(d.lastStep>0?(TH_TONES[d.lastKey]||{}).chord+' '+d.lastStep+'/3':''); pitchEl.style.color=d.lastStep>0?'#0a7d2a':''; }
+  if(S.mode==='mic'&&audio&&audio.det&&(audio.det.hearing||audio.det.lastStep>0||audio.det.longSeen)){ const d=audio.det; pitchEl.textContent='🎵 '+(d.hearing?'слышу ':'')+(d.longSeen?'длинный':(d.lastStep>0?'гудков: '+d.lastStep:'')); pitchEl.style.color=(d.lastStep>0||d.longSeen)?'#0a7d2a':''; }
   else { pitchEl.style.color=''; pitchEl.textContent=(S.mode==='mic'&&audio)?('вход '+(S.raw*1000).toFixed(0)+' ×'+S.gain.toFixed(1)):''; }
   let st;
   if(S.mode==='mic'&&S.needTap) st='Нажмите на экран → звук';
