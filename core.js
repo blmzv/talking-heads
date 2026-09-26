@@ -1,7 +1,7 @@
 /* Общий движок говорящих персонажей (одна сцена, персонажи переключаются без перезагрузки).
-   Требует tones.js и chars.js. Страница задаёт window.TH_DEFAULT — персонаж по умолчанию. */
+   Требует net.js (+ mqtt.min.js) и chars.js. Страница задаёт window.TH_DEFAULT — персонаж по умолчанию. */
 (function(){
-const TH_VERSION='v23';
+const TH_VERSION='v24';
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -15,7 +15,7 @@ const S={raw:0,level:0,talk:0,open:0,mode:'idle',prevMode:'idle',
   demoTarget:0,demoNext:0,keyHeld:false,sig:false,floor:'none',
   bubT:0,peakEnv:0.03,gain:1};
 let audio=null;
-const DEV_KEY='th_dev', SIG_KEY='th_sig', MIC_KEY='th_mic_on', LAST_KEY='th_last_char';
+const DEV_KEY='th_dev', SIG_KEY='th_sig', MIC_KEY='th_mic_on', LAST_KEY='th_last_char', ROOM_KEY='th_room';
 
 // ---------- журнал ----------
 const LOG=[]; const t0=performance.now();
@@ -70,7 +70,7 @@ function setCharacter(id){
   $('.stage').innerHTML=ch.svg;
   render=ch.mount($('#char'));
   try{ history.replaceState(null,'','#'+id); }catch(e){}
-  styleNav(); setFloor('none'); log('персонаж: '+ch.name);
+  styleNav(); log('персонаж: '+ch.name); if(net) net.setName(ch.name,{char:ch.id}); applyFloorKey(S.floorKey);
 }
 
 // ---------- аудио ----------
@@ -97,7 +97,6 @@ async function startMic(deviceId,quiet){
     const analyser=ctx.createAnalyser(); analyser.fftSize=4096; analyser.smoothingTimeConstant=0;
     src.connect(analyser);
     audio={ctx,stream,analyser,data:new Float32Array(analyser.fftSize)};
-    audio.det=new ThToneDetector(analyser,ctx.sampleRate,onTone,{onNote:msg=>log('  '+msg)});
     if(ctx.state!=='running'){ try{ await ctx.resume(); }catch(e){} }
     ctx.onstatechange=()=>log('audio ctx: '+ctx.state);
     S.needTap=ctx.state!=='running';
@@ -156,9 +155,9 @@ function say(){
   }else{ setMode('speak'); setTimeout(()=>{S.mode=back;},3000); }
 }
 
-// ---------- сигналы (передача слова аккордом) ----------
-let otherGen='';
-const HINT_DEFAULT='Тап по персонажу — его гудки: слово переходит к нему на всех устройствах';
+// ---------- слово по пульту (через комнату в сети) ----------
+let otherGen='', net=null;
+const HINT_DEFAULT='Слово передаёт пульт. Тап по персонажу — взять слово себе на всех экранах';
 const HINT_OFF='Держите пробел или палец на персонаже — «заговорит» без микрофона';
 function setFloor(f,who){
   if(f!==S.floor) log('слово: '+S.floor+' → '+f+(who?' ('+who+')':''));
@@ -167,21 +166,32 @@ function setFloor(f,who){
   const b=$('#floor'); b.hidden=!S.sig; b.classList.toggle('me',f==='me');
   b.textContent= f==='me'?'Слово у '+C.gen:f==='other'?'Слово у '+otherGen:'Слово свободно';
 }
-function onTone(key,score){
-  log('сигнал: '+key);
-  if(!S.sig) return;
+function applyFloorKey(key){
+  S.floorKey=key;
   if(key===C.id) setFloor('me');
-  else if(key==='silence') setFloor('none');
-  else setFloor('other',(TH_TONES[key]||{}).gen||key);
+  else if(key==='silence'||!key) setFloor('none');
+  else setFloor('other',(TH_NAMES[key]||{}).gen||key);
 }
+function onNetFloor(key,m){ log('пульт: '+key+(m&&m.name?' от '+m.name:'')); applyFloorKey(key); }
 function setSig(on){
   S.sig=!!on; save(SIG_KEY,S.sig?'1':'0');
   $('#sigBtn').classList.toggle('on',S.sig);
   $('#hint').textContent=S.sig?HINT_DEFAULT:HINT_OFF;
-  log('слово по сигналу: '+(S.sig?'ВКЛ':'ВЫКЛ'));
-  setFloor('none');
+  log('слово по пульту: '+(S.sig?'ВКЛ':'ВЫКЛ'));
+  applyFloorKey(S.sig?S.floorKey:null);
 }
-function chimeMe(){ thPlayTone(C.id); setFloor('me'); }
+function takeFloor(){ applyFloorKey(C.id); if(!(net&&net.publishFloor(C.id))) showBubble('Нет связи с комнатой — слово только на этом экране',2500); }
+function netStatus(state){
+  const el=$('#netDot'); if(!el) return;
+  el.textContent=state==='online'?'● комната '+net.room:state==='connecting'?'◌ подключение…':'○ нет связи';
+  el.style.color=state==='online'?'#0a7d2a':state==='connecting'?'#b58900':'#b00020';
+}
+function startNet(){
+  const room=load(ROOM_KEY,'skazka'); $('#roomInp').value=room;
+  net=new ThNet({room,role:'screen',name:C?C.name:'экран',log,
+    onFloor:onNetFloor,onState:netStatus,
+    onPresence:()=>{}});
+}
 
 // ---------- UI ----------
 $('#micBtn').onclick=()=>audio?stopMic():startMic();
@@ -190,17 +200,18 @@ if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener) navigator.me
 $('#demoBtn').onclick=()=>{ if(S.mode==='demo'){setMode(audio?'mic':'idle');} else setMode('demo'); };
 $('#sayBtn').onclick=say;
 $('#sigBtn').onclick=()=>setSig(!S.sig);
+$('#roomInp').onchange=e=>{ const r=e.target.value.trim()||'skazka'; save(ROOM_KEY,r); e.target.value=r; if(net) net.setRoom(r); };
+addEventListener('pagehide',()=>{ if(net) net.close(); });
 addEventListener('keydown',e=>{ if(e.code==='Space'){e.preventDefault();S.keyHeld=true;} });
 addEventListener('keyup',e=>{ if(e.code==='Space')S.keyHeld=false; });
 const stage=$('.stage'); stage.style.touchAction='none';
-stage.addEventListener('pointerdown',e=>{ if(!e.target.closest('svg')) return; e.preventDefault(); log('тап по персонажу'); if(S.sig){chimeMe();} else S.keyHeld=true;});
+stage.addEventListener('pointerdown',e=>{ if(!e.target.closest('svg')) return; e.preventDefault(); log('тап по персонажу'); if(S.sig){takeFloor();} else S.keyHeld=true;});
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>stage.addEventListener(ev,()=>{S.keyHeld=false;}));
 stage.addEventListener('contextmenu',e=>e.preventDefault());
 if('speechSynthesis' in window) speechSynthesis.getVoices();
 async function wakeAudio(){
   if(audio&&audio.ctx.state!=='running'){ try{ await audio.ctx.resume(); }catch(e){} log('audio ctx после касания: '+audio.ctx.state); }
   if(audio&&audio.ctx.state==='running'){ S.needTap=false; }
-  try{ thToneContext(); }catch(e){}
 }
 ['pointerdown','keydown','touchend'].forEach(ev=>addEventListener(ev,wakeAudio,{passive:true}));
 
@@ -210,6 +221,7 @@ setCharacter(TH_CHARS[startId]?startId:(window.TH_DEFAULT||load(LAST_KEY,'rusalo
 addEventListener('hashchange',()=>{ const id=location.hash.slice(1); if(TH_CHARS[id]&&(!C||C.id!==id)) setCharacter(id); });
 setSig(load(SIG_KEY,'1')==='1');
 log('старт '+TH_VERSION);
+startNet(); if(net&&C) net.name=C.name;
 if(load(MIC_KEY,'0')==='1'){ startMic('',true).then(()=>{ if(!audio){ $('#status').textContent='Нажмите «Включить микрофон»'; } }); }
 
 // ---------- главный цикл ----------
@@ -224,7 +236,6 @@ function frame(now){
     S.peakEnv=Math.max(S.raw, S.peakEnv*Math.exp(-dt/4));
     S.gain=clamp(0.15/Math.max(S.peakEnv,0.02),1,8);
     rawTarget=target=micTarget(S.raw*S.gain);
-    audio.det.tick(t);
     if(S.sig&&S.floor!=='me') target=0;      // единственное правило: говорит тот, чей аккорд прозвучал последним
   }
   else if(S.mode==='demo'||S.mode==='speak'){ target=demoLevel(dt); }
@@ -246,14 +257,13 @@ function frame(now){
   if(S.mode==='mic'&&audio){
     S._acc=S._acc||{n:0,lvl:0,t:0}; const A=S._acc; A.t+=dt;
     if(rawTarget>0.05){A.n++;A.lvl=Math.max(A.lvl,rawTarget);}
-    if(A.t>=0.5){ if(A.n>0) log('звук: пик='+A.lvl.toFixed(2)+' вход='+(S.raw*1000).toFixed(0)+' gain='+S.gain.toFixed(1)+(S.sig?' слово='+S.floor:'')+(audio.det.hearing?' нота✓':'')+(audio.det.lastStep>0?' гудков='+audio.det.lastStep:'')+' open='+S.open.toFixed(2));
+    if(A.t>=0.5){ if(A.n>0) log('звук: пик='+A.lvl.toFixed(2)+' вход='+(S.raw*1000).toFixed(0)+' gain='+S.gain.toFixed(1)+(S.sig?' слово='+S.floor:'')+' open='+S.open.toFixed(2));
       S._acc={n:0,lvl:0,t:0}; }
   }
   if(render) render(t,blink,S,dt);
 
   meter.style.width=(S.level*100).toFixed(0)+'%';
-  if(S.mode==='mic'&&audio&&audio.det&&(audio.det.hearing||audio.det.lastStep>0||audio.det.longSeen)){ const d=audio.det; pitchEl.textContent='🎵 '+(d.hearing?'слышу ':'')+(d.longSeen?'длинный':(d.lastStep>0?'гудков: '+d.lastStep:'')); pitchEl.style.color=(d.lastStep>0||d.longSeen)?'#0a7d2a':''; }
-  else { pitchEl.style.color=''; pitchEl.textContent=(S.mode==='mic'&&audio)?('вход '+(S.raw*1000).toFixed(0)+' ×'+S.gain.toFixed(1)):''; }
+  pitchEl.textContent=(S.mode==='mic'&&audio)?('вход '+(S.raw*1000).toFixed(0)+' ×'+S.gain.toFixed(1)):'';
   let st;
   if(S.mode==='mic'&&S.needTap) st='Нажмите на экран → звук';
   else if(S.mode==='mic'){
@@ -264,5 +274,5 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__TH={S,setFloor,onTone,setCharacter,get audio(){return audio;},get C(){return C;}};
+window.__TH={S,setFloor,applyFloorKey,setCharacter,get net(){return net;},get audio(){return audio;},get C(){return C;}};
 })();

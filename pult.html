@@ -12,51 +12,64 @@
 html,body{margin:0;height:100%;font-family:"Nunito","Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
 body{display:flex;flex-direction:column;min-height:100vh;padding:calc(14px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom))}
 h1{margin:0 0 4px;font-size:24px;text-align:center}
-p.sub{margin:0 0 16px;text-align:center;font-size:14px;opacity:.7}
-.grid{flex:1;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:minmax(140px,1fr);gap:14px}
+p.sub{margin:0 0 10px;text-align:center;font-size:14px;opacity:.7}
+.row{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin-bottom:12px;font-size:14px;font-weight:700}
+input[type=text]{border:0;border-radius:999px;padding:8px 12px;font:inherit;font-weight:700;font-size:15px;width:130px;background:#fff;color:inherit;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.net{font-size:13px;font-weight:700}
+.peers{font-size:13px;font-weight:600;opacity:.8;text-align:center;min-height:18px;margin-bottom:10px}
+.grid{flex:1;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:minmax(130px,1fr);gap:14px}
 .btn{border:0;border-radius:24px;color:#fff;font:inherit;font-weight:800;font-size:22px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
-  box-shadow:0 10px 24px rgba(0,0,0,.15);cursor:pointer;transition:transform .08s,box-shadow .2s,outline .2s;outline:4px solid transparent;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  box-shadow:0 10px 24px rgba(0,0,0,.15);cursor:pointer;transition:transform .08s,box-shadow .2s,outline .2s;outline:4px solid transparent;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;position:relative}
 .btn:active{transform:scale(.97)}
 .btn.active{outline-color:#fff;box-shadow:0 0 0 6px rgba(0,0,0,.18),0 10px 24px rgba(0,0,0,.2)}
 .btn span{font-size:44px;line-height:1}
 .btn small{font-size:13px;font-weight:600;opacity:.9}
+.btn .on{position:absolute;top:10px;right:14px;font-size:12px;background:rgba(255,255,255,.25);padding:3px 8px;border-radius:999px}
 #b-rusalochka{background:linear-gradient(160deg,#2aa6c9,#e63a2e)}
 #b-belosnezhka{background:linear-gradient(160deg,#3b56c9,#d62839)}
 #b-prince{background:linear-gradient(160deg,#3f5f9e,#d4a017)}
 #b-silence{background:linear-gradient(160deg,#6b7280,#1f2233)}
-.foot{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px;font-size:14px;font-weight:600}
-input[type=range]{width:160px;accent-color:#1f2233}
 .nl{text-decoration:none;font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px;color:inherit;background:rgba(0,0,0,.07)}
-.hint{text-align:center;font-size:12px;opacity:.65;margin-top:8px}
+.hint{text-align:center;font-size:12px;opacity:.65;margin-top:10px}
 </style>
 </head>
 <body>
 <h1>Пульт сказки</h1>
-<p class="sub">Нажмите, кто говорит. Гудки услышат все экраны.</p>
-<nav style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:-6px 0 14px"><a href="rusalochka.html" class="nl">🧜‍♀️ Русалочка</a><a href="belosnezhka.html" class="nl">🍎 Белоснежка</a><a href="prince.html" class="nl">👑 Принц</a></nav>
+<p class="sub">Нажмите, кто говорит. Команда уйдёт на все экраны комнаты.</p>
+<div class="row"><label>Комната <input id="roomInp" type="text" value="skazka" maxlength="24" autocapitalize="off" autocomplete="off"></label><span class="net" id="netDot">○ нет связи</span></div>
+<div class="peers" id="peers">Экраны: …</div>
 <div class="grid">
-  <button class="btn" id="b-rusalochka" data-key="rusalochka"><span>🧜‍♀️</span>Русалочка<small>один гудок</small></button>
-  <button class="btn" id="b-belosnezhka" data-key="belosnezhka"><span>🍎</span>Белоснежка<small>два гудка</small></button>
-  <button class="btn" id="b-prince" data-key="prince"><span>👑</span>Принц<small>три гудка</small></button>
-  <button class="btn" id="b-silence" data-key="silence"><span>🤫</span>Тишина<small>длинный гудок</small></button>
+  <button class="btn" id="b-rusalochka" data-key="rusalochka"><span>🧜‍♀️</span>Русалочка<small>говорит она</small></button>
+  <button class="btn" id="b-belosnezhka" data-key="belosnezhka"><span>🍎</span>Белоснежка<small>говорит она</small></button>
+  <button class="btn" id="b-prince" data-key="prince"><span>👑</span>Принц<small>говорит он</small></button>
+  <button class="btn" id="b-silence" data-key="silence"><span>🤫</span>Тишина<small>все молчат</small></button>
 </div>
-<div class="foot"><label>Громкость <input id="vol" type="range" min="0.1" max="1" step="0.05" value="0.6"></label></div>
-<div class="hint">Громкость телефона — выше половины. Если экран не отреагировал, нажмите ещё раз.</div>
-<script src="tones.js?v=23"></script>
+<nav class="row" style="margin:12px 0 0"><a href="rusalochka.html" class="nl">🧜‍♀️ Русалочка</a><a href="belosnezhka.html" class="nl">🍎 Белоснежка</a><a href="prince.html" class="nl">👑 Принц</a></nav>
+<div class="hint">Код комнаты должен совпадать на пульте и на всех экранах. Обоим нужен интернет.</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.16.0/mqtt.min.js"></script>
+<script src="net.js?v=24"></script>
 <script>
-const vol=document.getElementById('vol');
-try{ vol.value=localStorage.getItem('th_pult_vol')||vol.value; }catch(e){}
-vol.oninput=()=>{ try{localStorage.setItem('th_pult_vol',vol.value);}catch(e){} };
-let busy=false;
+const load=(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:v;}catch(e){return d;}};
+const save=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+const roomInp=document.getElementById('roomInp'); roomInp.value=load('th_room','skazka');
+const dot=document.getElementById('netDot'), peersEl=document.getElementById('peers');
+function mark(key){ document.querySelectorAll('.btn').forEach(b=>{ b.classList.toggle('active',b.dataset.key===key); }); }
+function showPeers(peers){
+  const screens=Object.values(peers).filter(p=>p.role==='screen');
+  const onChar={}; screens.forEach(p=>{ if(p.char) onChar[p.char]=(onChar[p.char]||0)+1; });
+  document.querySelectorAll('.btn').forEach(b=>{ let tag=b.querySelector('.on'); const n=onChar[b.dataset.key]||0;
+    if(!tag){tag=document.createElement('i');tag.className='on';b.appendChild(tag);} tag.textContent=n?('экранов: '+n):''; });
+  peersEl.textContent=screens.length?('Экраны онлайн: '+screens.map(p=>p.name).join(', ')):'Экраны онлайн: пока никого';
+}
+const net=new ThNet({room:roomInp.value,role:'pult',name:'пульт',
+  onFloor:key=>mark(key),
+  onPresence:showPeers,
+  onState:(s)=>{ dot.textContent=s==='online'?'● комната '+net.room:s==='connecting'?'◌ подключение…':'○ нет связи'; dot.style.color=s==='online'?'#0a7d2a':s==='connecting'?'#b58900':'#b00020'; if(s!=='online') peersEl.textContent='Экраны: …'; }});
+roomInp.onchange=()=>{ const r=roomInp.value.trim()||'skazka'; roomInp.value=r; save('th_room',r); net.setRoom(r); };
 document.querySelectorAll('.btn').forEach(b=>{
-  b.addEventListener('pointerdown',e=>{
-    e.preventDefault(); if(busy) return; busy=true;
-    document.querySelectorAll('.btn').forEach(x=>x.classList.remove('active')); b.classList.add('active');
-    const ms=thPlayTone(b.dataset.key,parseFloat(vol.value)*0.7);
-    if(navigator.vibrate) navigator.vibrate(30);
-    setTimeout(()=>{busy=false;},ms+80);
-  });
+  b.addEventListener('pointerdown',e=>{ e.preventDefault(); mark(b.dataset.key); if(!net.publishFloor(b.dataset.key)){ dot.textContent='○ нет связи — команда не ушла'; } if(navigator.vibrate) navigator.vibrate(30); });
 });
+addEventListener('pagehide',()=>net.close());
 </script>
 </body>
 </html>
