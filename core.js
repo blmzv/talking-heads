@@ -1,7 +1,7 @@
 /* Общий движок говорящих персонажей. Требует tones.js.
    Страница задаёт window.CHAR = {id, name, gen, phrases, tts:{pitch,rate}, defaultVoice:'any'|'female'|'male', render(t,blink,S,dt)} */
 (function(){
-const TH_VERSION='v11';
+const TH_VERSION='v12';
 const C=window.CHAR;
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -177,7 +177,7 @@ function setFloor(f,who){
   b.textContent= f==='me'?'Слово у '+C.gen:f==='other'?'Слово у '+otherGen:'Слово свободно';
 }
 function onTone(key,score){
-  log('сигнал: '+key+' ('+score.toFixed(0)+' дБ)');
+  log('сигнал: '+key+' ('+score.toFixed(0)+' дБ, dom '+(audio&&audio.det?audio.det.lastDom.toFixed(0):'?')+')');
   if(!S.sig) return;
   if(key===C.id) setFloor('me');
   else if(key==='silence') setFloor('none');

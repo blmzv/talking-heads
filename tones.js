@@ -1,10 +1,10 @@
 /* Звуковые сигналы передачи слова: пара частот на персонажа (как в тоновом наборе).
    Общий для страниц персонажей и пульта. */
 window.TH_TONES={
-  silence:    {f:[1400,2100], name:'Тишина',     gen:null,        color:'#6b7280'},
-  rusalochka: {f:[1700,2550], name:'Русалочка',  gen:'Русалочки', color:'#e63a2e'},
-  belosnezhka:{f:[2350,3525], name:'Белоснежка', gen:'Белоснежки',color:'#d62839'},
-  prince:     {f:[3000,4500], name:'Принц',      gen:'Принца',    color:'#d4a017'}
+  silence:    {f:[1400,2260], name:'Тишина',     gen:null,        color:'#6b7280'},
+  rusalochka: {f:[1720,2780], name:'Русалочка',  gen:'Русалочки', color:'#e63a2e'},
+  belosnezhka:{f:[2000,3240], name:'Белоснежка', gen:'Белоснежки',color:'#d62839'},
+  prince:     {f:[2500,4040], name:'Принц',      gen:'Принца',    color:'#d4a017'}
 };
 window.TH_TONE_MS=450;
 
@@ -34,33 +34,44 @@ window.thPlayTone=function(key,volume){
   return TH_TONE_MS+160;
 };
 
-/* Детектор: ищет одновременно оба пика сигнала в спектре несколько кадров подряд. */
+/* Детектор. Сигнал засчитан, когда одновременно:
+   1) оба пика выступают над своей окрестностью (prominence ≥ minProm дБ),
+   2) оба пика громче всего остального в полосе 1.2–4.8 кГц (dominance ≥ minDom дБ) — у речи рядом
+      стоят соседние гармоники сравнимой силы, у перезвона вокруг тишина,
+   3) так несколько кадров подряд. */
 window.ThToneDetector=class{
   constructor(analyser,sampleRate,onDetect,opts){
+    opts=opts||{};
     this.an=analyser; this.sr=sampleRate; this.on=onDetect;
     this.spec=new Float32Array(analyser.frequencyBinCount);
     this.binHz=sampleRate/analyser.fftSize;
-    this.minProm=(opts&&opts.minProm)||11;   // дБ над окрестностью
-    this.needFrames=(opts&&opts.needFrames)||3;
-    this.refractory=(opts&&opts.refractory)||0.7;
-    this.cand=null; this.count=0; this.lastT=-10; this.lastScore=0;
+    this.minProm=opts.minProm||10; this.minDom=opts.minDom||6;
+    this.needFrames=opts.needFrames||4; this.refractory=opts.refractory||0.7;
+    this.bandLo=Math.round(1200/this.binHz); this.bandHi=Math.round(4800/this.binHz);
+    this.cand=null; this.count=0; this.lastT=-10; this.lastScore=0; this.lastKey=null; this.lastDom=0;
   }
   peak(idx){ const s=this.spec; let m=-Infinity; for(let i=idx-1;i<=idx+1;i++) if(s[i]>m) m=s[i]; return m; }
   base(idx){ const s=this.spec; let sum=0,n=0;
     for(let i=idx-12;i<=idx-4;i++){ if(i>=0){sum+=s[i];n++;} }
     for(let i=idx+4;i<=idx+12;i++){ if(i<s.length){sum+=s[i];n++;} }
     return n?sum/n:-100; }
+  maxOther(idxs){ const s=this.spec; let m=-Infinity;
+    for(let i=this.bandLo;i<=this.bandHi;i++){ let skip=false; for(const j of idxs){ if(Math.abs(i-j)<=3){skip=true;break;} } if(!skip&&s[i]>m) m=s[i]; }
+    return m; }
   tick(t){
     this.an.getFloatFrequencyData(this.spec);
-    let best=null,bestScore=0;
+    let best=null,bestScore=0,bestDom=0;
     for(const key in TH_TONES){
-      const fs=TH_TONES[key].f; let score=Infinity;
-      for(const f of fs){ const idx=Math.round(f/this.binHz); const pk=this.peak(idx);
-        if(pk<-85){score=-1;break;} score=Math.min(score,pk-this.base(idx)); }
-      if(score>bestScore){bestScore=score;best=key;}
+      const idxs=TH_TONES[key].f.map(f=>Math.round(f/this.binHz));
+      let prom=Infinity, minPk=Infinity;
+      for(const idx of idxs){ const pk=this.peak(idx); if(pk<-85){prom=-1;break;} minPk=Math.min(minPk,pk); prom=Math.min(prom,pk-this.base(idx)); }
+      if(prom<0) continue;
+      const dom=minPk-this.maxOther(idxs);
+      const score=Math.min(prom,dom+4);        // единая шкала для индикатора
+      if(score>bestScore){bestScore=score;best=key;bestDom=dom;}
     }
-    this.lastScore=bestScore; this.lastKey=best;
-    if(best&&bestScore>=this.minProm){
+    this.lastScore=bestScore; this.lastKey=best; this.lastDom=bestDom;
+    if(best&&bestScore>=this.minProm&&bestDom>=this.minDom){
       if(best===this.cand) this.count++; else {this.cand=best;this.count=1;}
       if(this.count>=this.needFrames && t-this.lastT>this.refractory){ this.lastT=t; this.on(best,bestScore); }
     } else { this.cand=null; this.count=0; }
