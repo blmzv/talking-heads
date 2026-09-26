@@ -45,7 +45,7 @@ window.ThToneDetector=class{
     this.spec=new Float32Array(analyser.frequencyBinCount);
     this.binHz=sampleRate/analyser.fftSize;
     this.minProm=opts.minProm||10; this.minDom=opts.minDom||5;
-    this.needFrames=opts.needFrames||2; this.maxSpan=opts.maxSpan||1.6; this.refractory=opts.refractory||1.0;
+    this.needFrames=opts.needFrames||4; this.maxSpan=opts.maxSpan||1.6; this.refractory=opts.refractory||1.0;
     this.bandLo=Math.round(950/this.binHz); this.bandHi=Math.round(2900/this.binHz);
     this.notes=[]; for(const k in TH_TONES) TH_TONES[k].f.forEach(f=>{ if(!this.notes.some(n=>Math.abs(n.f-f)<1)) this.notes.push({f,idx:Math.round(f/this.binHz)}); });
     this.prog={}; for(const k in TH_TONES) this.prog[k]={step:0,t:0,frames:0};
@@ -82,6 +82,7 @@ window.ThToneDetector=class{
         if(Math.abs(heard.f-fs[P.step])<1){ P.step++; P.t=t;
           if(P.step===fs.length){ P.step=0; if(t-this.lastT>this.refractory){ this.lastT=t; this.on(k,bestScore); } }
         } else if(Math.abs(heard.f-fs[0])<1){ P.step=1; P.t=t; }   // начали заново с первой ноты
+        else { P.step=0; }                                          // чужая нота между ступенями — сброс (защита от глиссандо)
       }
       if(P.step>progressStep){progressStep=P.step;progressKey=k;}
     }
