@@ -1,7 +1,7 @@
 /* Общий движок говорящих персонажей (одна сцена, персонажи переключаются без перезагрузки).
    Требует tones.js и chars.js. Страница задаёт window.TH_DEFAULT — персонаж по умолчанию. */
 (function(){
-const TH_VERSION='v16';
+const TH_VERSION='v17';
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -13,11 +13,9 @@ let C=null, render=null;              // текущий персонаж и ег
 const S={raw:0,level:0,talk:0,open:0,mode:'idle',prevMode:'idle',
   blinkT:-1,nextBlink:1.5,gaze:{x:0,y:0,tx:0,ty:0,next:1.5},
   demoTarget:0,demoNext:0,keyHeld:false,sig:false,floor:'none',
-  pitch:-1,voice:null,voiceT:-10,vm:0.5,bubT:0,gated:false,peakEnv:0.03,gain:1};
+  bubT:0,peakEnv:0.03,gain:1};
 let audio=null;
-const DEV_KEY='th_dev', VOICE_KEY='th_voice3', SIG_KEY='th_sig', MIC_KEY='th_mic_on', LAST_KEY='th_last_char';
-const SPLIT_HZ=165;
-let voiceGate=load(VOICE_KEY,'any');
+const DEV_KEY='th_dev', SIG_KEY='th_sig', MIC_KEY='th_mic_on', LAST_KEY='th_last_char';
 
 // ---------- журнал ----------
 const LOG=[]; const t0=performance.now();
@@ -35,7 +33,7 @@ function log(msg){
   box.querySelector('#logClose').onclick=()=>{box.hidden=true;};
   box.querySelector('#logClear').onclick=()=>{LOG.length=0;box.querySelector('pre').textContent='';};
   box.querySelector('#logCopy').onclick=async()=>{
-    const txt=['== '+(C?C.name:'?')+' · '+TH_VERSION+' · '+navigator.userAgent,'voiceGate='+voiceGate+' sig='+S.sig+' floor='+S.floor+' mode='+S.mode].concat(LOG).join('\n');
+    const txt=['== '+(C?C.name:'?')+' · '+TH_VERSION+' · '+navigator.userAgent,'sig='+S.sig+' floor='+S.floor+' mode='+S.mode].concat(LOG).join('\n');
     try{ await navigator.clipboard.writeText(txt); showBubble('Журнал скопирован',2000); }
     catch(e){ const r=document.createRange(); r.selectNodeContents(box.querySelector('pre')); const sel=getSelection(); sel.removeAllRanges(); sel.addRange(r); showBubble('Выделено — скопируйте вручную',3000); }
   };
@@ -98,7 +96,7 @@ async function startMic(deviceId,quiet){
     const src=ctx.createMediaStreamSource(stream);
     const analyser=ctx.createAnalyser(); analyser.fftSize=4096; analyser.smoothingTimeConstant=0;
     src.connect(analyser);
-    audio={ctx,stream,analyser,data:new Float32Array(analyser.fftSize),ds:new Float32Array(1024)};
+    audio={ctx,stream,analyser,data:new Float32Array(analyser.fftSize)};
     audio.det=new ThToneDetector(analyser,ctx.sampleRate,onTone);
     if(ctx.state==='suspended') await ctx.resume();
     setMode('mic'); $('#micBtn').classList.add('on'); $('#micBtn').textContent='⏹ Выключить микрофон';
@@ -119,30 +117,9 @@ function stopMic(keepFlag){
   if(S.mode==='mic') setMode('idle');
 }
 function readMic(){
-  const {analyser,data,ds,ctx}=audio; analyser.getFloatTimeDomainData(data);
+  const {analyser,data}=audio; analyser.getFloatTimeDomainData(data);
   let sum=0; for(let i=0;i<data.length;i++) sum+=data[i]*data[i];
-  const rms=Math.sqrt(sum/data.length);
-  S.pitch=-1;
-  if(rms>0.008){
-    const N=ds.length; for(let i=0;i<N;i++) ds[i]=(data[2*i]+data[2*i+1])*0.5;
-    S.pitch=detectPitch(ds,ctx.sampleRate/2);
-  }
-  return rms;
-}
-function detectPitch(buf,sr){
-  const N=buf.length, minLag=Math.floor(sr/400), maxLag=Math.min(Math.floor(sr/70),N-1);
-  const corr=new Float32Array(maxLag+1); let best=0,bestLag=-1;
-  for(let lag=minLag;lag<=maxLag;lag++){
-    let c=0,e1=0,e2=0;
-    for(let i=0;i<N-lag;i++){const a=buf[i],b=buf[i+lag];c+=a*b;e1+=a*a;e2+=b*b;}
-    const n=c/Math.sqrt(e1*e2+1e-12); corr[lag]=n;
-    if(n>best){best=n;bestLag=lag;}
-  }
-  if(best<0.55) return -1;
-  for(let lag=minLag;lag<bestLag;lag++){
-    if(corr[lag]>=best*0.9 && corr[lag]>corr[lag-1]&&corr[lag]>=corr[lag+1]){bestLag=lag;break;}
-  }
-  return sr/bestLag;
+  return Math.sqrt(sum/data.length);
 }
 function micTarget(rms){
   const sens=parseFloat($('#sens').value);
@@ -204,8 +181,6 @@ function setSig(on){
 function chimeMe(){ thPlayTone(C.id); setFloor('me'); }
 
 // ---------- UI ----------
-$('#voiceSel').value=voiceGate;
-$('#voiceSel').onchange=e=>{voiceGate=e.target.value;save(VOICE_KEY,voiceGate);log('voiceGate → '+voiceGate);};
 $('#micBtn').onclick=()=>audio?stopMic():startMic();
 $('#devSel').onchange=e=>{ save(DEV_KEY,e.target.value); startMic(e.target.value); };
 if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange',listDevices);
@@ -225,7 +200,7 @@ const startId=(location.hash||'').slice(1);
 setCharacter(TH_CHARS[startId]?startId:(window.TH_DEFAULT||load(LAST_KEY,'rusalochka')));
 addEventListener('hashchange',()=>{ const id=location.hash.slice(1); if(TH_CHARS[id]&&(!C||C.id!==id)) setCharacter(id); });
 setSig(load(SIG_KEY,'1')==='1');
-log('старт '+TH_VERSION+': voiceGate='+voiceGate);
+log('старт '+TH_VERSION);
 if(load(MIC_KEY,'0')==='1'){ startMic('',true).then(()=>{ if(!audio){ $('#status').textContent='Нажмите «Включить микрофон»'; } }); }
 
 // ---------- главный цикл ----------
@@ -233,18 +208,15 @@ const meter=$('#meter'), status=$('#status'), pitchEl=$('#pitch');
 let last=performance.now();
 function frame(now){
   const dt=Math.min(0.05,(now-last)/1000); last=now; const t=now/1000;
-  let target=0, rawTarget=0; S.gated=false;
+  let target=0, rawTarget=0;
   if(S.mode==='mic'&&audio){
     S.raw=readMic();
-    // программное автоусиление: тихий микрофон (iPad) подтягиваем к уровню ~0.15 по пикам последних секунд
+    // программное автоусиление: тихий микрофон подтягиваем к уровню ~0.15 по пикам последних секунд
     S.peakEnv=Math.max(S.raw, S.peakEnv*Math.exp(-dt/4));
     S.gain=clamp(0.15/Math.max(S.peakEnv,0.02),1,8);
     rawTarget=target=micTarget(S.raw*S.gain);
-    if(S.pitch>0&&rawTarget>0.05){ S.vm=smooth(S.vm,S.pitch<SPLIT_HZ?1:0,0.06,dt); S.voiceT=t; S.voice=S.vm>0.5?'male':'female'; }
-    if(t-S.voiceT>0.6){ S.voice=null; S.vm=0.5; }
-    if(voiceGate!=='any'&&S.voice!==voiceGate){ target=0; S.gated=rawTarget>0.1; }
     audio.det.tick(t);
-    if(S.sig&&S.floor!=='me') target=0;
+    if(S.sig&&S.floor!=='me') target=0;      // единственное правило: говорит тот, чей аккорд прозвучал последним
   }
   else if(S.mode==='demo'||S.mode==='speak'){ target=demoLevel(dt); }
   if(S.keyHeld) target=Math.max(target,demoLevel(dt));
@@ -263,29 +235,24 @@ function frame(now){
   S.gaze.x=smooth(S.gaze.x,S.gaze.tx,0.25,dt); S.gaze.y=smooth(S.gaze.y,S.gaze.ty,0.25,dt);
 
   if(S.mode==='mic'&&audio){
-    S._acc=S._acc||{n:0,p:[],lvl:0,g:0,t:0}; const A=S._acc; A.t+=dt;
-    if(rawTarget>0.05){A.n++;A.lvl=Math.max(A.lvl,rawTarget);if(S.pitch>0)A.p.push(Math.round(S.pitch));if(S.gated)A.g++;}
-    if(A.t>=0.5){ if(A.n>0){ const med=A.p.length?A.p.sort((a,b)=>a-b)[A.p.length>>1]:'-';
-        log('звук: пик='+A.lvl.toFixed(2)+' gain='+S.gain.toFixed(1)+' тон≈'+med+'Гц голос='+(S.voice||'?')+' voiced='+A.p.length+'/'+A.n+(A.g?' ОТСЕЧЕНО':'')+(S.sig?' слово='+S.floor:'')+(audio.det.lastScore>3?' аккорд='+audio.det.lastKey+':'+audio.det.lastScore.toFixed(0):'')+' open='+S.open.toFixed(2)); }
-      S._acc={n:0,p:[],lvl:0,g:0,t:0}; }
+    S._acc=S._acc||{n:0,lvl:0,t:0}; const A=S._acc; A.t+=dt;
+    if(rawTarget>0.05){A.n++;A.lvl=Math.max(A.lvl,rawTarget);}
+    if(A.t>=0.5){ if(A.n>0) log('звук: пик='+A.lvl.toFixed(2)+' вход='+(S.raw*1000).toFixed(0)+' gain='+S.gain.toFixed(1)+(S.sig?' слово='+S.floor:'')+(audio.det.lastScore>3?' аккорд='+audio.det.lastKey+':'+audio.det.lastScore.toFixed(0):'')+' open='+S.open.toFixed(2));
+      S._acc={n:0,lvl:0,t:0}; }
   }
   if(render) render(t,blink,S,dt);
 
   meter.style.width=(S.level*100).toFixed(0)+'%';
   if(S.mode==='mic'&&audio&&audio.det&&audio.det.lastScore>=4){ const d=audio.det; pitchEl.textContent='🎵 '+(TH_TONES[d.lastKey]||{}).chord+' '+d.lastScore.toFixed(0)+' дБ'; pitchEl.style.color=d.lastScore>=d.minProm?'#0a7d2a':''; }
-  else { pitchEl.style.color='';
-    if(S.mode==='mic'&&S.pitch>0&&rawTarget>0.05) pitchEl.textContent=Math.round(S.pitch)+' Гц '+(S.voice==='male'?'♂':S.voice==='female'?'♀':'');
-    else if(S.mode==='mic'&&audio) pitchEl.textContent='вход '+(S.raw*1000).toFixed(0)+' ×'+S.gain.toFixed(1);
-    else pitchEl.textContent=''; }
+  else { pitchEl.style.color=''; pitchEl.textContent=(S.mode==='mic'&&audio)?('вход '+(S.raw*1000).toFixed(0)+' ×'+S.gain.toFixed(1)):''; }
   let st;
   if(S.mode==='mic'){
-    if(S.gated) st='Не мой голос';
-    else if(S.sig) st= S.floor==='me'?(S.talk>0.5?'Говорит 🗣':'Слово у меня'):S.floor==='other'?'Слово у '+otherGen:'Ждём сигнал…';
+    if(S.sig) st= S.floor==='me'?(S.talk>0.5?'Говорит 🗣':'Слово у меня'):S.floor==='other'?'Слово у '+otherGen:'Ждём сигнал…';
     else st= S.talk>0.5?'Говорит 🗣':'Слушаю…';
   } else st= S.mode==='demo'?'Демо-режим':S.mode==='speak'?'Говорит сам(а) 🗣':(S.keyHeld?'Говорит (удержание)':'Микрофон выключен');
   status.textContent=st;
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__TH={S,setFloor,detectPitch,onTone,setCharacter,get audio(){return audio;},get C(){return C;}};
+window.__TH={S,setFloor,onTone,setCharacter,get audio(){return audio;},get C(){return C;}};
 })();
