@@ -1,6 +1,7 @@
 /* Общий движок говорящих персонажей. Требует tones.js.
    Страница задаёт window.CHAR = {id, name, gen, phrases, tts:{pitch,rate}, defaultVoice:'any'|'female'|'male', render(t,blink,S,dt)} */
 (function(){
+const TH_VERSION='v8';
 const C=window.CHAR;
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -42,7 +43,8 @@ const SPLIT_HZ=165;           // ниже — мужской, выше — же�
 let voiceGate=load(VOICE_KEY,C.defaultVoice||'any');
 $('#voiceSel').value=voiceGate;
 $('#voiceSel').onchange=e=>{voiceGate=e.target.value;save(VOICE_KEY,voiceGate);log('voiceGate → '+voiceGate);};
-log('старт: voiceGate='+voiceGate);
+log('старт '+TH_VERSION+': voiceGate='+voiceGate);
+(function(){const v=document.createElement('span');v.textContent=TH_VERSION;v.style.cssText='font-size:11px;opacity:.5;font-weight:700';document.querySelector('.panel').appendChild(v);})();
 
 // ---------- аудио ----------
 function savedDevice(){ return load(DEV_KEY,''); }
