@@ -17,7 +17,10 @@ header{padding:18px 20px 0;text-align:center}
 h1{margin:0;font-size:30px;letter-spacing:.5px}
 h1 small{display:block;font-size:14px;font-weight:400;opacity:.75;margin-top:2px}
 .stage{flex:1;display:flex;align-items:center;justify-content:center;width:100%;max-width:520px;padding:4px 16px}
-svg{width:100%;height:auto;max-height:68vh;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:pointer;filter:drop-shadow(0 18px 28px rgba(20,50,30,.35))}
+svg{width:100%;height:auto;max-height:68vh;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:pointer;transition:filter .35s;filter:drop-shadow(0 18px 28px rgba(20,50,30,.35))}
+svg.muted{filter:drop-shadow(0 18px 28px rgba(20,50,30,.35)) grayscale(.6) brightness(.8)}
+.floor{font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px;background:rgba(0,0,0,.08)}
+.floor.me{background:var(--accent);color:#fff}
 .panel{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;background:var(--card);
   backdrop-filter:blur(8px);border-radius:18px;padding:12px 16px;margin:0 16px 22px;box-shadow:0 6px 20px rgba(20,50,30,.15)}
 button{border:0;border-radius:999px;padding:10px 16px;font:inherit;font-weight:700;background:#22352a;color:#f3f7dc;cursor:pointer;transition:transform .1s,background .2s}
@@ -194,11 +197,13 @@ input[type=range]{width:110px;accent-color:var(--accent)}
   <select id="devSel" hidden title="Какой микрофон слушать"></select>
   <button id="demoBtn">▶ Демо</button>
   <button id="sayBtn">🗣 Реплика</button>
+  <button id="cwBtn">🗝 Кодовое слово</button>
+  <div class="floor" id="floor" hidden></div>
   <label>Чувствительность <input id="sens" type="range" min="0" max="1" step="0.01" value="0.6"></label>
   <div class="meter"><i id="meter"></i></div>
   <div class="status" id="status">Микрофон выключен</div>
 </div>
-<div class="hint">Держите пробел или палец на персонаже — «заговорит» без микрофона</div>
+<div class="hint" id="hint">Держите пробел или палец на персонаже — «заговорит» без микрофона</div>
 
 <script>
 const $=s=>document.querySelector(s);
@@ -208,7 +213,7 @@ const smooth=(cur,target,tau,dt)=>lerp(cur,target,1-Math.exp(-dt/tau));
 
 const S={raw:0,level:0,talk:0,open:0,mode:'idle',prevMode:'idle',
   blinkT:-1,nextBlink:1.5,gaze:{x:0,y:0,tx:0,ty:0,next:1.5},
-  demoTarget:0,demoNext:0,keyHeld:false};
+  demoTarget:0,demoNext:0,keyHeld:false,cw:false,floor:'none'};
 let audio=null;
 
 // ---------- аудио ----------
@@ -302,9 +307,56 @@ $('#sayBtn').onclick=say;
 addEventListener('keydown',e=>{ if(e.code==='Space'){e.preventDefault();S.keyHeld=true;} });
 addEventListener('keyup',e=>{ if(e.code==='Space')S.keyHeld=false; });
 const svgEl=$('#char'); svgEl.style.touchAction='none';
-svgEl.addEventListener('pointerdown',e=>{e.preventDefault();S.keyHeld=true;});
+svgEl.addEventListener('pointerdown',e=>{e.preventDefault(); if(S.cw){setFloor(S.floor==='me'?'none':'me');} else S.keyHeld=true;});
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>svgEl.addEventListener(ev,()=>{S.keyHeld=false;}));
 svgEl.addEventListener('contextmenu',e=>e.preventDefault());
+
+// ---------- кодовое слово ----------
+const ME_ROOT='белоснеж', OT_ROOT='русалоч';
+let rec=null, recSeen='', recRestartT=null;
+const norm=t=>t.toLowerCase().replace(/ё/g,'е');
+function setFloor(f){
+  S.floor=f;
+  $('#char').classList.toggle('muted',S.cw&&f!=='me');
+  const b=$('#floor'); b.hidden=!S.cw; b.classList.toggle('me',f==='me');
+  b.textContent= f==='me'?'Слово у Белоснежки':f==='other'?'Слово у Русалочки':'Слово свободно';
+}
+function handleTranscript(tr,isFinal){
+  const t=norm(tr);
+  const fresh=t.startsWith(recSeen)?t.slice(recSeen.length):t;
+  recSeen=isFinal?'':t;
+  const a=fresh.lastIndexOf(ME_ROOT), b=fresh.lastIndexOf(OT_ROOT);
+  if(a<0&&b<0) return;
+  setFloor(a>b?'me':'other');
+}
+function runRec(){
+  if(!S.cw) return;
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  rec=new SR(); rec.lang='ru-RU'; rec.continuous=true; rec.interimResults=true; rec.maxAlternatives=1;
+  rec.onresult=e=>{ for(let i=e.resultIndex;i<e.results.length;i++){ const r=e.results[i]; handleTranscript(r[0].transcript,r.isFinal); } };
+  rec.onerror=e=>{
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){ stopCW(); showBubble('Распознавание речи запрещено в браузере'); }
+    else if(e.error==='network'){ showBubble('Распознаванию нужен интернет',2500); }
+  };
+  rec.onend=()=>{ recSeen=''; if(S.cw){ clearTimeout(recRestartT); recRestartT=setTimeout(runRec,250); } };
+  try{ rec.start(); }catch(err){ console.warn(err); }
+}
+function startCW(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ showBubble('В этом браузере нет распознавания речи. Попробуйте Safari или Chrome.'); return; }
+  S.cw=true; $('#cwBtn').classList.add('on'); setFloor('none');
+  $('#hint').textContent='Скажите имя персонажа — слово перейдёт к ней. Тап по персонажу тоже передаёт слово.';
+  if(!audio) startMic();
+  runRec();
+  showBubble('Жду имена: «Белоснежка» или «'+'Русалочки'.replace(/и$/,'а')+'»',3000);
+}
+function stopCW(){
+  S.cw=false; $('#cwBtn').classList.remove('on'); clearTimeout(recRestartT);
+  if(rec){ try{rec.onend=null; rec.stop();}catch(e){} rec=null; }
+  setFloor('none');
+  $('#hint').textContent='Держите пробел или палец на персонаже — «заговорит» без микрофона';
+}
+$('#cwBtn').onclick=()=>S.cw?stopCW():startCW();
 
 // ---------- анимация ----------
 const el={head:$('#head'),brows:$('#brows'),mouth:$('#mouth'),clip:$('#mouthClipPath'),
@@ -317,7 +369,7 @@ let last=performance.now();
 function frame(now){
   const dt=Math.min(0.05,(now-last)/1000); last=now; const t=now/1000;
   let target=0;
-  if(S.mode==='mic'&&audio){ S.raw=readMic(); target=micTarget(S.raw); }
+  if(S.mode==='mic'&&audio){ S.raw=readMic(); target=micTarget(S.raw); if(S.cw&&S.floor!=='me') target=0; }
   else if(S.mode==='demo'||S.mode==='speak'){ target=demoLevel(dt); }
   if(S.keyHeld) target=Math.max(target,demoLevel(dt));
 
@@ -337,7 +389,7 @@ function frame(now){
 
   render(t,blink);
   el.meter.style.width=(S.level*100).toFixed(0)+'%';
-  el.status.textContent= S.mode==='mic'?(S.talk>0.5?'Говорит 🗣':'Слушаю…'):
+  el.status.textContent= S.mode==='mic'?(S.cw?(S.floor==='me'?(S.talk>0.5?'Говорит 🗣':'Слово у меня'):S.floor==='other'?'Слово у Русалочки':'Ждём имя…'):(S.talk>0.5?'Говорит 🗣':'Слушаю…')):
     S.mode==='demo'?'Демо-режим':S.mode==='speak'?'Говорит сама 🗣':(S.keyHeld?'Говорит (удержание)':'Микрофон выключен');
   requestAnimationFrame(frame);
 }
