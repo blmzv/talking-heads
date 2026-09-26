@@ -1,7 +1,7 @@
 /* Общий движок говорящих персонажей (одна сцена, персонажи переключаются без перезагрузки).
    Требует tones.js и chars.js. Страница задаёт window.TH_DEFAULT — персонаж по умолчанию. */
 (function(){
-const TH_VERSION='v15';
+const TH_VERSION='v16';
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -238,7 +238,7 @@ function frame(now){
     S.raw=readMic();
     // программное автоусиление: тихий микрофон (iPad) подтягиваем к уровню ~0.15 по пикам последних секунд
     S.peakEnv=Math.max(S.raw, S.peakEnv*Math.exp(-dt/4));
-    S.gain=clamp(0.15/Math.max(S.peakEnv,0.03),1,5);
+    S.gain=clamp(0.15/Math.max(S.peakEnv,0.02),1,8);
     rawTarget=target=micTarget(S.raw*S.gain);
     if(S.pitch>0&&rawTarget>0.05){ S.vm=smooth(S.vm,S.pitch<SPLIT_HZ?1:0,0.06,dt); S.voiceT=t; S.voice=S.vm>0.5?'male':'female'; }
     if(t-S.voiceT>0.6){ S.voice=null; S.vm=0.5; }
@@ -273,7 +273,10 @@ function frame(now){
 
   meter.style.width=(S.level*100).toFixed(0)+'%';
   if(S.mode==='mic'&&audio&&audio.det&&audio.det.lastScore>=4){ const d=audio.det; pitchEl.textContent='🎵 '+(TH_TONES[d.lastKey]||{}).chord+' '+d.lastScore.toFixed(0)+' дБ'; pitchEl.style.color=d.lastScore>=d.minProm?'#0a7d2a':''; }
-  else { pitchEl.style.color=''; pitchEl.textContent=(S.mode==='mic'&&S.pitch>0&&rawTarget>0.05)?(Math.round(S.pitch)+' Гц '+(S.voice==='male'?'♂':S.voice==='female'?'♀':'')):''; }
+  else { pitchEl.style.color='';
+    if(S.mode==='mic'&&S.pitch>0&&rawTarget>0.05) pitchEl.textContent=Math.round(S.pitch)+' Гц '+(S.voice==='male'?'♂':S.voice==='female'?'♀':'');
+    else if(S.mode==='mic'&&audio) pitchEl.textContent='вход '+(S.raw*1000).toFixed(0)+' ×'+S.gain.toFixed(1);
+    else pitchEl.textContent=''; }
   let st;
   if(S.mode==='mic'){
     if(S.gated) st='Не мой голос';
