@@ -24,6 +24,8 @@ button{border:0;border-radius:999px;padding:10px 16px;font:inherit;font-weight:7
 button:hover{transform:translateY(-1px)}
 button.on{background:var(--accent);color:#fff}
 label{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
+select{border:0;border-radius:999px;padding:9px 14px;font:inherit;font-weight:600;font-size:14px;background:rgba(255,255,255,.85);color:inherit;max-width:230px}
+select[hidden]{display:none}
 input[type=range]{width:110px;accent-color:var(--accent)}
 .meter{width:110px;height:10px;border-radius:5px;background:rgba(0,0,0,.12);overflow:hidden}
 .meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#7bc043,#ffd166,#d62839)}
@@ -189,6 +191,7 @@ input[type=range]{width:110px;accent-color:var(--accent)}
 
 <div class="panel">
   <button id="micBtn">🎙 Включить микрофон</button>
+  <select id="devSel" hidden title="Какой микрофон слушать"></select>
   <button id="demoBtn">▶ Демо</button>
   <button id="sayBtn">🗣 Реплика</button>
   <label>Чувствительность <input id="sens" type="range" min="0" max="1" step="0.01" value="0.6"></label>
@@ -209,9 +212,26 @@ const S={raw:0,level:0,talk:0,open:0,mode:'idle',prevMode:'idle',
 let audio=null;
 
 // ---------- аудио ----------
-async function startMic(){
+const DEV_KEY='th_dev_belosnezhka';
+function savedDevice(){ try{return localStorage.getItem(DEV_KEY)||'';}catch(e){return '';} }
+async function listDevices(){
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    const devs=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='audioinput');
+    const sel=$('#devSel'); const cur=audio?audio.stream.getAudioTracks()[0].getSettings().deviceId:savedDevice();
+    sel.innerHTML='';
+    devs.forEach((d,i)=>{const o=document.createElement('option');o.value=d.deviceId;o.textContent=d.label||('Микрофон '+(i+1));if(d.deviceId===cur)o.selected=true;sel.appendChild(o);});
+    sel.hidden=devs.length<2;
+  }catch(e){console.warn(e);}
+}
+async function startMic(deviceId){
+  try{
+    deviceId=deviceId||savedDevice();
+    const audioC={echoCancellation:true,noiseSuppression:true,autoGainControl:true};
+    if(deviceId) audioC.deviceId={exact:deviceId};
+    let stream;
+    try{ stream=await navigator.mediaDevices.getUserMedia({audio:audioC}); }
+    catch(e){ if(deviceId){delete audioC.deviceId; stream=await navigator.mediaDevices.getUserMedia({audio:audioC});} else throw e; }
+    if(audio){ audio.stream.getTracks().forEach(t=>t.stop()); audio.ctx.close(); audio=null; }
     const ctx=new (window.AudioContext||window.webkitAudioContext)();
     const src=ctx.createMediaStreamSource(stream);
     const analyser=ctx.createAnalyser(); analyser.fftSize=1024; analyser.smoothingTimeConstant=0;
@@ -219,6 +239,9 @@ async function startMic(){
     audio={ctx,stream,analyser,data:new Uint8Array(analyser.fftSize)};
     if(ctx.state==='suspended') await ctx.resume();
     setMode('mic'); $('#micBtn').classList.add('on'); $('#micBtn').textContent='⏹ Выключить микрофон';
+    const used=stream.getAudioTracks()[0]; try{localStorage.setItem(DEV_KEY,used.getSettings().deviceId||'');}catch(e){}
+    await listDevices();
+    showBubble('Слушаю: '+(used.label||'микрофон'),2500);
   }catch(e){
     console.error(e);
     $('#status').textContent='Нет доступа к микрофону';
@@ -272,6 +295,8 @@ function say(){
 
 // ---------- UI ----------
 $('#micBtn').onclick=()=>audio?stopMic():startMic();
+$('#devSel').onchange=e=>{ try{localStorage.setItem(DEV_KEY,e.target.value);}catch(err){} startMic(e.target.value); };
+if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange',listDevices);
 $('#demoBtn').onclick=()=>{ if(S.mode==='demo'){setMode(audio?'mic':'idle');} else setMode('demo'); };
 $('#sayBtn').onclick=say;
 addEventListener('keydown',e=>{ if(e.code==='Space'){e.preventDefault();S.keyHeld=true;} });
