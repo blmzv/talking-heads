@@ -1,7 +1,7 @@
 /* Общий движок говорящих персонажей. Требует tones.js.
    Страница задаёт window.CHAR = {id, name, gen, phrases, tts:{pitch,rate}, defaultVoice:'any'|'female'|'male', render(t,blink,S,dt)} */
 (function(){
-const TH_VERSION='v10';
+const TH_VERSION='v11';
 const C=window.CHAR;
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -20,6 +20,7 @@ function log(msg){
   const box=document.createElement('div'); box.id='logBox'; box.hidden=true;
   box.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;max-height:45vh;background:rgba(20,20,30,.94);color:#dfe;border-radius:14px;padding:10px;font:12px/1.35 ui-monospace,Menlo,monospace;z-index:50;display:flex;flex-direction:column;gap:8px';
   box.innerHTML='<div style="display:flex;gap:8px;align-items:center"><b style="flex:1">Журнал</b><button id="logCopy" style="padding:6px 12px;font-size:12px">Копировать</button><button id="logClear" style="padding:6px 12px;font-size:12px">Очистить</button><button id="logClose" style="padding:6px 12px;font-size:12px">Закрыть</button></div><pre style="margin:0;overflow:auto;white-space:pre-wrap;flex:1"></pre>';
+  const st=document.createElement('style'); st.textContent='#logBox[hidden]{display:none!important}'; document.head.appendChild(st);
   document.body.appendChild(box);
   box.querySelector('#logClose').onclick=()=>{box.hidden=true;};
   box.querySelector('#logClear').onclick=()=>{LOG.length=0;box.querySelector('pre').textContent='';};
