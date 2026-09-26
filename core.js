@@ -1,7 +1,7 @@
 /* Общий движок говорящих персонажей. Требует tones.js.
    Страница задаёт window.CHAR = {id, name, gen, phrases, tts:{pitch,rate}, defaultVoice:'any'|'female'|'male', render(t,blink,S,dt)} */
 (function(){
-const TH_VERSION='v8';
+const TH_VERSION='v9';
 const C=window.CHAR;
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -227,13 +227,14 @@ function frame(now){
     S._acc=S._acc||{n:0,p:[],lvl:0,g:0,t:0}; const A=S._acc; A.t+=dt;
     if(rawTarget>0.05){A.n++;A.lvl=Math.max(A.lvl,rawTarget);if(S.pitch>0)A.p.push(Math.round(S.pitch));if(S.gated)A.g++;}
     if(A.t>=0.5){ if(A.n>0){ const med=A.p.length?A.p.sort((a,b)=>a-b)[A.p.length>>1]:'-';
-        log('звук: пик='+A.lvl.toFixed(2)+' тон≈'+med+'Гц голос='+(S.voice||'?')+' voiced='+A.p.length+'/'+A.n+(A.g?' ОТСЕЧЕНО':'')+(S.sig?' слово='+S.floor:'')+(audio.det&&audio.det.lastScore>5?' тон='+audio.det.lastKey+':'+audio.det.lastScore.toFixed(0):'')+' open='+S.open.toFixed(2)); }
+        log('звук: пик='+A.lvl.toFixed(2)+' тон≈'+med+'Гц голос='+(S.voice||'?')+' voiced='+A.p.length+'/'+A.n+(A.g?' ОТСЕЧЕНО':'')+(S.sig?' слово='+S.floor:'')+(audio.det&&audio.det.lastScore>3?' тон='+audio.det.lastKey+':'+audio.det.lastScore.toFixed(0):'')+' open='+S.open.toFixed(2)); }
       S._acc={n:0,p:[],lvl:0,g:0,t:0}; }
   }
   C.render(t,blink,S,dt);
 
   meter.style.width=(S.level*100).toFixed(0)+'%';
-  pitchEl.textContent=(S.mode==='mic'&&S.pitch>0&&rawTarget>0.05)?(Math.round(S.pitch)+' Гц '+(S.voice==='male'?'♂':S.voice==='female'?'♀':'')):'';
+  if(S.mode==='mic'&&audio&&audio.det&&audio.det.lastScore>=4){ const d=audio.det; pitchEl.textContent='🔔 '+(TH_TONES[d.lastKey]||{}).name+' '+d.lastScore.toFixed(0)+' дБ'; pitchEl.style.color=d.lastScore>=d.minProm?'#0a7d2a':''; }
+  else { pitchEl.style.color=''; pitchEl.textContent=(S.mode==='mic'&&S.pitch>0&&rawTarget>0.05)?(Math.round(S.pitch)+' Гц '+(S.voice==='male'?'♂':S.voice==='female'?'♀':'')):''; }
   let st;
   if(S.mode==='mic'){
     if(S.gated) st='Не мой голос';
