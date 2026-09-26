@@ -9,6 +9,29 @@ const lerp=(a,b,t)=>a+(b-a)*t;
 const smooth=(cur,target,tau,dt)=>lerp(cur,target,1-Math.exp(-dt/tau));
 const load=(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:v;}catch(e){return d;}};
 const save=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+// ---------- журнал ----------
+const LOG=[]; const t0=performance.now();
+function log(msg){
+  const ts=((performance.now()-t0)/1000).toFixed(1).padStart(6);
+  LOG.push(ts+'  '+msg); if(LOG.length>300) LOG.shift();
+  const box=document.getElementById('logBox'); if(box&&!box.hidden){ box.querySelector('pre').textContent=LOG.slice(-80).join('\n'); box.querySelector('pre').scrollTop=1e9; }
+}
+(function(){
+  const box=document.createElement('div'); box.id='logBox'; box.hidden=true;
+  box.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;max-height:45vh;background:rgba(20,20,30,.94);color:#dfe;border-radius:14px;padding:10px;font:12px/1.35 ui-monospace,Menlo,monospace;z-index:50;display:flex;flex-direction:column;gap:8px';
+  box.innerHTML='<div style="display:flex;gap:8px;align-items:center"><b style="flex:1">Журнал</b><button id="logCopy" style="padding:6px 12px;font-size:12px">Копировать</button><button id="logClear" style="padding:6px 12px;font-size:12px">Очистить</button><button id="logClose" style="padding:6px 12px;font-size:12px">Закрыть</button></div><pre style="margin:0;overflow:auto;white-space:pre-wrap;flex:1"></pre>';
+  document.body.appendChild(box);
+  box.querySelector('#logClose').onclick=()=>{box.hidden=true;};
+  box.querySelector('#logClear').onclick=()=>{LOG.length=0;box.querySelector('pre').textContent='';};
+  box.querySelector('#logCopy').onclick=async()=>{
+    const txt=['== '+C.name+' · '+navigator.userAgent,'voiceGate='+voiceGate+' cw='+S.cw+' floor='+S.floor+' mode='+S.mode].concat(LOG).join('\n');
+    try{ await navigator.clipboard.writeText(txt); showBubble('Журнал скопирован',2000); }
+    catch(e){ const r=document.createRange(); r.selectNodeContents(box.querySelector('pre')); const sel=getSelection(); sel.removeAllRanges(); sel.addRange(r); showBubble('Выделено — скопируйте вручную',3000); }
+  };
+  const btn=document.createElement('button'); btn.id='logBtn'; btn.textContent='🐞 Лог';
+  btn.onclick=()=>{ box.hidden=!box.hidden; if(!box.hidden){ box.querySelector('pre').textContent=LOG.slice(-80).join('\n'); } };
+  document.querySelector('.panel').appendChild(btn);
+})();
 
 const S={raw:0,level:0,talk:0,open:0,mode:'idle',prevMode:'idle',
   blinkT:-1,nextBlink:1.5,gaze:{x:0,y:0,tx:0,ty:0,next:1.5},
@@ -19,7 +42,8 @@ const DEV_KEY='th_dev_'+C.id, VOICE_KEY='th_voice_'+C.id;
 const SPLIT_HZ=165;           // ниже — мужской, выше — женский
 let voiceGate=load(VOICE_KEY,C.defaultVoice||'any');
 $('#voiceSel').value=voiceGate;
-$('#voiceSel').onchange=e=>{voiceGate=e.target.value;save(VOICE_KEY,voiceGate);};
+$('#voiceSel').onchange=e=>{voiceGate=e.target.value;save(VOICE_KEY,voiceGate);log('voiceGate → '+voiceGate);};
+log('старт: voiceGate='+voiceGate+' codeword='+!!C.codeword+' SR='+!!(window.SpeechRecognition||window.webkitSpeechRecognition));
 
 // ---------- аудио ----------
 function savedDevice(){ return load(DEV_KEY,''); }
@@ -51,8 +75,9 @@ async function startMic(deviceId){
     const used=stream.getAudioTracks()[0]; save(DEV_KEY,used.getSettings().deviceId||'');
     await listDevices();
     showBubble('Слушаю: '+(used.label||'микрофон'),2500);
+    log('микрофон: '+(used.label||'?')+' sr='+ctx.sampleRate+' state='+ctx.state+' settings='+JSON.stringify(used.getSettings()));
   }catch(e){
-    console.error(e);
+    console.error(e); log('микрофон ОШИБКА: '+e.name+' '+e.message);
     $('#status').textContent='Нет доступа к микрофону';
     showBubble('Микрофон не дали… Нажмите «Демо» или держите пробел');
   }
@@ -126,6 +151,7 @@ let rec=null, recSeen='', recRestartT=null, otherGen='';
 const norm=t=>t.toLowerCase().replace(/ё/g,'е');
 const HINT_DEFAULT='Держите пробел или палец на персонаже — «заговорит» без микрофона';
 function setFloor(f,who){
+  if(f!==S.floor) log('слово: '+S.floor+' → '+f+(who?' ('+who+')':''));
   S.floor=f; if(who) otherGen=who;
   $('#char').classList.toggle('muted',S.cw&&f!=='me');
   const b=$('#floor'); b.hidden=!S.cw; b.classList.toggle('me',f==='me');
@@ -135,6 +161,7 @@ function handleTranscript(tr,isFinal){
   const t=norm(tr);
   const fresh=t.startsWith(recSeen)?t.slice(recSeen.length):t;
   recSeen=isFinal?'':t;
+  if(isFinal) log('услышано: «'+t.trim()+'»');
   let bestIdx=-1, action=null;
   const consider=(root,act)=>{const i=fresh.lastIndexOf(root); if(i>bestIdx){bestIdx=i;action=act;}};
   consider(C.roots.me,()=>setFloor('me'));
@@ -147,17 +174,19 @@ function runRec(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   rec=new SR(); rec.lang='ru-RU'; rec.continuous=true; rec.interimResults=true; rec.maxAlternatives=1;
   rec.onresult=e=>{ for(let i=e.resultIndex;i<e.results.length;i++){ const r=e.results[i]; handleTranscript(r[0].transcript,r.isFinal); } };
+  rec.onstart=()=>log('распознавание: старт');
   rec.onerror=e=>{
+    log('распознавание ОШИБКА: '+e.error);
     if(e.error==='not-allowed'||e.error==='service-not-allowed'){ stopCW(); showBubble('Распознавание речи запрещено в браузере'); }
     else if(e.error==='network'){ showBubble('Распознаванию нужен интернет',2500); }
   };
-  rec.onend=()=>{ recSeen=''; if(S.cw){ clearTimeout(recRestartT); recRestartT=setTimeout(runRec,250); } };
+  rec.onend=()=>{ log('распознавание: конец'+(S.cw?', перезапуск':'')); recSeen=''; if(S.cw){ clearTimeout(recRestartT); recRestartT=setTimeout(runRec,250); } };
   try{ rec.start(); }catch(err){ console.warn(err); }
 }
 function startCW(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){ showBubble('В этом браузере нет распознавания речи. Попробуйте Safari или Chrome.'); return; }
-  S.cw=true; $('#cwBtn').classList.add('on'); setFloor('none');
+  S.cw=true; $('#cwBtn').classList.add('on'); log('кодовое слово: ВКЛ'); setFloor('none');
   $('#hint').textContent='Скажите имя персонажа — слово перейдёт к нему. Тап по персонажу тоже передаёт слово.';
   if(!audio) startMic();
   runRec();
@@ -165,7 +194,7 @@ function startCW(){
   showBubble('Жду имена: '+names,3000);
 }
 function stopCW(){
-  S.cw=false; $('#cwBtn').classList.remove('on'); clearTimeout(recRestartT);
+  S.cw=false; $('#cwBtn').classList.remove('on'); log('кодовое слово: ВЫКЛ'); clearTimeout(recRestartT);
   if(rec){ try{rec.onend=null; rec.stop();}catch(e){} rec=null; }
   setFloor('none');
   $('#hint').textContent=HINT_DEFAULT;
@@ -181,7 +210,7 @@ if(C.codeword){ $('#cwBtn').onclick=()=>S.cw?stopCW():startCW(); } else { $('#cw
 addEventListener('keydown',e=>{ if(e.code==='Space'){e.preventDefault();S.keyHeld=true;} });
 addEventListener('keyup',e=>{ if(e.code==='Space')S.keyHeld=false; });
 const svgEl=$('#char'); svgEl.style.touchAction='none';
-svgEl.addEventListener('pointerdown',e=>{e.preventDefault(); if(S.cw){setFloor(S.floor==='me'?'none':'me');} else S.keyHeld=true;});
+svgEl.addEventListener('pointerdown',e=>{e.preventDefault(); log('тап по персонажу'); if(S.cw){setFloor(S.floor==='me'?'none':'me');} else S.keyHeld=true;});
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>svgEl.addEventListener(ev,()=>{S.keyHeld=false;}));
 svgEl.addEventListener('contextmenu',e=>e.preventDefault());
 if('speechSynthesis' in window) speechSynthesis.getVoices();
@@ -216,6 +245,13 @@ function frame(now){
   if(S.gaze.next<=0){S.gaze.tx=(Math.random()*2-1);S.gaze.ty=(Math.random()*2-1)*0.6;S.gaze.next=1.2+Math.random()*3;}
   S.gaze.x=smooth(S.gaze.x,S.gaze.tx,0.25,dt); S.gaze.y=smooth(S.gaze.y,S.gaze.ty,0.25,dt);
 
+  if(S.mode==='mic'){
+    S._acc=S._acc||{n:0,p:[],lvl:0,g:0,t:0}; const A=S._acc; A.t+=dt;
+    if(rawTarget>0.05){A.n++;A.lvl=Math.max(A.lvl,rawTarget);if(S.pitch>0)A.p.push(Math.round(S.pitch));if(S.gated)A.g++;}
+    if(A.t>=0.5){ if(A.n>0){ const med=A.p.length?A.p.sort((a,b)=>a-b)[A.p.length>>1]:'-';
+        log('звук: пик='+A.lvl.toFixed(2)+' тон≈'+med+'Гц голос='+(S.voice||'?')+' voiced='+A.p.length+'/'+A.n+(A.g?' ОТСЕЧЕНО':'')+(S.cw?' слово='+S.floor:'')+' open='+S.open.toFixed(2)); }
+      S._acc={n:0,p:[],lvl:0,g:0,t:0}; }
+  }
   C.render(t,blink,S,dt);
 
   meter.style.width=(S.level*100).toFixed(0)+'%';
