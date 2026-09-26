@@ -161,9 +161,11 @@ function handleTranscript(tr,isFinal){
   const t=norm(tr);
   const fresh=t.startsWith(recSeen)?t.slice(recSeen.length):t;
   recSeen=isFinal?'':t;
-  if(isFinal) log('услышано: «'+t.trim()+'»');
+  if(isFinal) log('услышано: «'+t.trim()+'»'); else if(t!==S._lastInterim){ S._lastInterim=t; log('~ '+t.trim()); }
   let bestIdx=-1, action=null;
-  const consider=(root,act)=>{const i=fresh.lastIndexOf(root); if(i>bestIdx){bestIdx=i;action=act;}};
+  const lastMatch=(root,str)=>{ if(typeof root==='string') return str.lastIndexOf(root);
+    const re=new RegExp(root.source,'g'+(root.flags.replace('g',''))); let m,idx=-1; while((m=re.exec(str))){idx=m.index; if(m[0].length===0) re.lastIndex++;} return idx; };
+  const consider=(root,act)=>{const i=lastMatch(root,fresh); if(i>bestIdx){bestIdx=i;action=act;}};
   consider(C.roots.me,()=>setFloor('me'));
   (C.roots.others||[]).forEach(o=>consider(o.root,()=>setFloor('other',o.gen)));
   (C.roots.release||[]).forEach(r=>consider(r,()=>setFloor('none')));
