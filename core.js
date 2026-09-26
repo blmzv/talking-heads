@@ -1,7 +1,7 @@
 /* Общий движок говорящих персонажей (одна сцена, персонажи переключаются без перезагрузки).
    Требует tones.js и chars.js. Страница задаёт window.TH_DEFAULT — персонаж по умолчанию. */
 (function(){
-const TH_VERSION='v17';
+const TH_VERSION='v18';
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -165,7 +165,7 @@ function setFloor(f,who){
   b.textContent= f==='me'?'Слово у '+C.gen:f==='other'?'Слово у '+otherGen:'Слово свободно';
 }
 function onTone(key,score){
-  log('сигнал: '+key+' ('+score.toFixed(0)+' дБ, dom '+(audio&&audio.det?audio.det.lastDom.toFixed(0):'?')+')');
+  log('сигнал: '+key+' ('+score.toFixed(0)+' дБ)');
   if(!S.sig) return;
   if(key===C.id) setFloor('me');
   else if(key==='silence') setFloor('none');
@@ -237,13 +237,13 @@ function frame(now){
   if(S.mode==='mic'&&audio){
     S._acc=S._acc||{n:0,lvl:0,t:0}; const A=S._acc; A.t+=dt;
     if(rawTarget>0.05){A.n++;A.lvl=Math.max(A.lvl,rawTarget);}
-    if(A.t>=0.5){ if(A.n>0) log('звук: пик='+A.lvl.toFixed(2)+' вход='+(S.raw*1000).toFixed(0)+' gain='+S.gain.toFixed(1)+(S.sig?' слово='+S.floor:'')+(audio.det.lastScore>3?' аккорд='+audio.det.lastKey+':'+audio.det.lastScore.toFixed(0):'')+' open='+S.open.toFixed(2));
+    if(A.t>=0.5){ if(A.n>0) log('звук: пик='+A.lvl.toFixed(2)+' вход='+(S.raw*1000).toFixed(0)+' gain='+S.gain.toFixed(1)+(S.sig?' слово='+S.floor:'')+(audio.det.lastNote?' нота='+audio.det.lastNote:'')+(audio.det.lastStep>0?' аккорд='+audio.det.lastKey+' '+audio.det.lastStep+'/3':'')+' open='+S.open.toFixed(2));
       S._acc={n:0,lvl:0,t:0}; }
   }
   if(render) render(t,blink,S,dt);
 
   meter.style.width=(S.level*100).toFixed(0)+'%';
-  if(S.mode==='mic'&&audio&&audio.det&&audio.det.lastScore>=4){ const d=audio.det; pitchEl.textContent='🎵 '+(TH_TONES[d.lastKey]||{}).chord+' '+d.lastScore.toFixed(0)+' дБ'; pitchEl.style.color=d.lastScore>=d.minProm?'#0a7d2a':''; }
+  if(S.mode==='mic'&&audio&&audio.det&&(audio.det.lastNote||audio.det.lastStep>0)){ const d=audio.det; pitchEl.textContent='🎵 '+(d.lastNote?d.lastNote+' Гц ':'')+(d.lastStep>0?(TH_TONES[d.lastKey]||{}).chord+' '+d.lastStep+'/3':''); pitchEl.style.color=d.lastStep>0?'#0a7d2a':''; }
   else { pitchEl.style.color=''; pitchEl.textContent=(S.mode==='mic'&&audio)?('вход '+(S.raw*1000).toFixed(0)+' ×'+S.gain.toFixed(1)):''; }
   let st;
   if(S.mode==='mic'){
