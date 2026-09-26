@@ -35,14 +35,14 @@ input[type=range]{width:160px;accent-color:#1f2233}
 <p class="sub">Нажмите, кто говорит. Три ноты услышат все экраны.</p>
 <nav style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:-6px 0 14px"><a href="rusalochka.html" class="nl">🧜‍♀️ Русалочка</a><a href="belosnezhka.html" class="nl">🍎 Белоснежка</a><a href="prince.html" class="nl">👑 Принц</a></nav>
 <div class="grid">
-  <button class="btn" id="b-rusalochka" data-key="rusalochka"><span>🧜‍♀️</span>Русалочка<small>до мажор</small></button>
-  <button class="btn" id="b-belosnezhka" data-key="belosnezhka"><span>🍎</span>Белоснежка<small>фа мажор</small></button>
-  <button class="btn" id="b-prince" data-key="prince"><span>👑</span>Принц<small>соль мажор</small></button>
-  <button class="btn" id="b-silence" data-key="silence"><span>🤫</span>Тишина<small>ре минор</small></button>
+  <button class="btn" id="b-rusalochka" data-key="rusalochka"><span>🧜‍♀️</span>Русалочка<small>три ноты вверх</small></button>
+  <button class="btn" id="b-belosnezhka" data-key="belosnezhka"><span>🍎</span>Белоснежка<small>три ноты вниз</small></button>
+  <button class="btn" id="b-prince" data-key="prince"><span>👑</span>Принц<small>зигзаг ↑↓</small></button>
+  <button class="btn" id="b-silence" data-key="silence"><span>🤫</span>Тишина<small>зигзаг ↓↑</small></button>
 </div>
 <div class="foot"><label>Громкость <input id="vol" type="range" min="0.1" max="1" step="0.05" value="0.6"></label></div>
 <div class="hint">Громкость телефона — выше половины. Если экран не отреагировал, нажмите ещё раз.</div>
-<script src="tones.js?v=19"></script>
+<script src="tones.js?v=20"></script>
 <script>
 const vol=document.getElementById('vol');
 try{ vol.value=localStorage.getItem('th_pult_vol')||vol.value; }catch(e){}

@@ -1,15 +1,15 @@
 /* Звуковые сигналы передачи слова: пара частот на персонажа (как в тоновом наборе).
    Общий для страниц персонажей и пульта. */
-/* Ноты равномерной темперации, 6–7 октавы: хорошо воспроизводятся динамиком телефона и летят через комнату. */
-const N={C6:1046.5,D6:1174.66,E6:1318.51,F6:1396.91,G6:1567.98,A6:1760,B6:1975.53,C7:2093,D7:2349.32,E7:2637.02};
+/* Ноты разведены максимально: 12 частот с шагом 200 Гц в 1.5–3.7 кГц, у каждого сигнала свои три,
+   без общих нот, и свой рисунок (вверх / вниз / зигзаг). Гармония тут не нужна — важна различимость микрофоном. */
 window.TH_TONES={
-  rusalochka: {f:[N.C6,N.E6,N.G6], name:'Русалочка',  chord:'до мажор',  gen:'Русалочки', color:'#e63a2e'},
-  belosnezhka:{f:[N.F6,N.A6,N.C7], name:'Белоснежка', chord:'фа мажор',  gen:'Белоснежки',color:'#d62839'},
-  prince:     {f:[N.G6,N.B6,N.D7], name:'Принц',      chord:'соль мажор',gen:'Принца',    color:'#d4a017'},
-  silence:    {f:[N.D6,N.F6,N.A6], name:'Тишина',     chord:'ре минор',  gen:null,        color:'#6b7280'}
+  rusalochka: {f:[1500,2300,3100], name:'Русалочка',  chord:'три ноты вверх ↗', gen:'Русалочки', color:'#e63a2e'},
+  belosnezhka:{f:[3700,2900,2100], name:'Белоснежка', chord:'три ноты вниз ↘',  gen:'Белоснежки',color:'#d62839'},
+  prince:     {f:[1900,3500,2700], name:'Принц',      chord:'зигзаг ↑↓',        gen:'Принца',    color:'#d4a017'},
+  silence:    {f:[3300,1700,2500], name:'Тишина',     chord:'зигзаг ↓↑',        gen:null,        color:'#6b7280'}
 };
-window.TH_NOTE_MS=220;   // длительность ноты
-window.TH_GAP_MS=90;     // пауза между нотами
+window.TH_NOTE_MS=260;   // длительность ноты
+window.TH_GAP_MS=100;     // пауза между нотами
 window.TH_TONE_MS=3*window.TH_NOTE_MS+2*window.TH_GAP_MS;
 
 let _toneCtx=null;
@@ -36,7 +36,7 @@ window.thPlayTone=function(key,volume){
 };
 
 /* Детектор последовательности. Каждый кадр ищет одну доминирующую ноту: пик выступает над окрестностью
-   (prominence ≥ minProm дБ) и громче всего остального в полосе 0.95–2.9 кГц (dominance ≥ minDom дБ).
+   (prominence ≥ minProm дБ) и громче всего остального в полосе 1.3–4.0 кГц (dominance ≥ minDom дБ).
    Для каждого аккорда ведётся счётчик: услышали его 1-ю ноту, потом 2-ю, потом 3-ю в течение maxSpan с — сигнал. */
 window.ThToneDetector=class{
   constructor(analyser,sampleRate,onDetect,opts){
@@ -46,7 +46,7 @@ window.ThToneDetector=class{
     this.binHz=sampleRate/analyser.fftSize;
     this.minProm=opts.minProm||10; this.minDom=opts.minDom||5;
     this.needFrames=opts.needFrames||4; this.maxSpan=opts.maxSpan||1.6; this.refractory=opts.refractory||1.0;
-    this.bandLo=Math.round(950/this.binHz); this.bandHi=Math.round(2900/this.binHz);
+    this.bandLo=Math.round(1300/this.binHz); this.bandHi=Math.round(4000/this.binHz);
     this.notes=[]; for(const k in TH_TONES) TH_TONES[k].f.forEach(f=>{ if(!this.notes.some(n=>Math.abs(n.f-f)<1)) this.notes.push({f,idx:Math.round(f/this.binHz)}); });
     this.prog={}; for(const k in TH_TONES) this.prog[k]={step:0,t:0,frames:0};
     this.curNote=null; this.curFrames=0; this.lastT=-10; this.lastScore=0; this.lastKey=null; this.lastDom=0; this.lastNote=null;
