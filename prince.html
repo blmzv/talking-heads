@@ -8,23 +8,23 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>Принц</title>
 <style>
-:root{--bg1:#e3f1ff;--bg2:#3f5f9e;--ink:#1e2a4a;--card:rgba(255,255,255,.62);--accent:#d4a017}
+:root{--bg1:#e8eef5;--bg2:#4a5a80;--ink:#1e2a4a;--card:rgba(255,255,255,.6);--accent:#d4a017;--btn:#1e2a4a;--btnText:#eaf2ff;--shadow:rgba(20,30,70,.35);--meter:linear-gradient(90deg,#6fb1ff,#ffd166,#d4a017)}
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%;font-family:"Nunito","Segoe UI",system-ui,sans-serif;color:var(--ink);
-  background:radial-gradient(circle at 50% 20%,var(--bg1),var(--bg2) 85%)}
+  background:radial-gradient(circle at 50% 20%,var(--bg1),var(--bg2) 85%);transition:background .4s}
 body{display:flex;flex-direction:column;align-items:center;min-height:100vh;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
 header{padding:18px 20px 0;text-align:center}
 h1{margin:0;font-size:30px;letter-spacing:.5px}
 h1 small{display:block;font-size:14px;font-weight:400;opacity:.75;margin-top:2px}
 .stage{flex:1;display:flex;align-items:center;justify-content:center;width:100%;max-width:520px;padding:4px 16px}
-svg{width:100%;height:auto;max-height:68vh;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:pointer;transition:filter .35s;filter:drop-shadow(0 18px 28px rgba(20,30,70,.35))}
-svg.muted{filter:drop-shadow(0 18px 28px rgba(20,30,70,.35)) grayscale(.6) brightness(.8)}
+svg{width:100%;height:auto;max-height:68vh;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:pointer;transition:filter .35s;filter:drop-shadow(0 18px 28px var(--shadow))}
+svg.muted{filter:drop-shadow(0 18px 28px var(--shadow)) grayscale(.6) brightness(.8)}
 .floor{font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px;background:rgba(0,0,0,.08)}
 .floor.me{background:var(--accent);color:#fff}
 .pitch{font-size:12px;font-weight:700;min-width:70px;opacity:.75;font-variant-numeric:tabular-nums}
 .panel{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;background:var(--card);
-  backdrop-filter:blur(8px);border-radius:18px;padding:12px 16px;margin:0 16px 22px;box-shadow:0 6px 20px rgba(20,30,70,.15)}
-button{border:0;border-radius:999px;padding:10px 16px;font:inherit;font-weight:700;background:#1e2a4a;color:#eaf2ff;cursor:pointer;transition:transform .1s,background .2s}
+  backdrop-filter:blur(8px);border-radius:18px;padding:12px 16px;margin:0 16px 22px;box-shadow:0 6px 20px var(--shadow)}
+button{border:0;border-radius:999px;padding:10px 16px;font:inherit;font-weight:700;background:var(--btn);color:var(--btnText);cursor:pointer;transition:transform .1s,background .2s}
 button:hover{transform:translateY(-1px)}
 button.on{background:var(--accent);color:#fff}
 label{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
@@ -32,12 +32,21 @@ select{border:0;border-radius:999px;padding:9px 14px;font:inherit;font-weight:60
 select[hidden]{display:none}
 input[type=range]{width:110px;accent-color:var(--accent)}
 .meter{width:110px;height:10px;border-radius:5px;background:rgba(0,0,0,.12);overflow:hidden}
-.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#6fb1ff,#ffd166,#d4a017)}
+.meter i{display:block;height:100%;width:0;background:var(--meter)}
 .status{font-size:14px;min-width:150px;text-align:center;font-weight:600}
 .hint{font-size:12px;opacity:.7;text-align:center;margin:-10px 16px 16px}
 .bubble{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#fff;border-radius:16px;padding:10px 16px;
-  font-size:15px;font-weight:700;box-shadow:0 8px 24px rgba(20,30,70,.25);opacity:0;transition:opacity .3s;pointer-events:none;max-width:90vw;color:#1e2a4a}
+  font-size:15px;font-weight:700;box-shadow:0 8px 24px var(--shadow);opacity:0;transition:opacity .3s;pointer-events:none;max-width:90vw;color:#1e2a4a;z-index:60}
 .bubble.show{opacity:1}
+/* декор персонажей */
+.bub{animation:rise linear infinite;transform-box:fill-box;transform-origin:center}
+@keyframes rise{0%{transform:translateY(0);opacity:0}10%{opacity:.75}100%{transform:translateY(-470px);opacity:0}}
+.ray{animation:sway 7s ease-in-out infinite alternate;transform-origin:200px 0}
+@keyframes sway{from{transform:rotate(-2deg)}to{transform:rotate(2deg)}}
+.leaf{animation:fall linear infinite}
+@keyframes fall{0%{transform:translate(0,-30px) rotate(0);opacity:0}10%{opacity:.9}100%{transform:translate(-40px,500px) rotate(300deg);opacity:0}}
+.bokeh{animation:twinkle 4s ease-in-out infinite alternate}
+@keyframes twinkle{from{opacity:.15}to{opacity:.4}}
 .cloud{animation:drift linear infinite}
 @keyframes drift{from{transform:translateX(-140px)}to{transform:translateX(420px)}}
 .flag{animation:wave 1.6s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:left center}
@@ -45,134 +54,9 @@ input[type=range]{width:110px;accent-color:var(--accent)}
 </style>
 </head>
 <body>
-<header><h1>Принц <small>говорите — и он заговорит</small></h1></header>
+<header><h1>Принц <small>говорите — и заговорит</small></h1></header>
 <div class="bubble" id="bubble"></div>
-
-<div class="stage">
-<svg id="char" viewBox="0 0 400 480" xmlns="http://www.w3.org/2000/svg" aria-label="Принц">
-  <defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#7fb8f0"/><stop offset=".6" stop-color="#cfe6fb"/><stop offset="1" stop-color="#f6e2c0"/>
-    </linearGradient>
-    <radialGradient id="skin" cx="45%" cy="35%" r="75%">
-      <stop offset="0" stop-color="#ffe3cc"/><stop offset="1" stop-color="#f0bf9c"/>
-    </radialGradient>
-    <linearGradient id="hair" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#7a4a24"/><stop offset="1" stop-color="#3f2410"/>
-    </linearGradient>
-    <linearGradient id="coat" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2f4aa8"/><stop offset="1" stop-color="#1b2c6e"/>
-    </linearGradient>
-    <linearGradient id="cape" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#d63a3a"/><stop offset="1" stop-color="#8f1a24"/>
-    </linearGradient>
-    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#c8931a"/>
-    </linearGradient>
-    <clipPath id="mouthClip"><path id="mouthClipPath" d=""/></clipPath>
-    <clipPath id="frame"><rect x="0" y="0" width="400" height="480" rx="28"/></clipPath>
-  </defs>
-
-  <g clip-path="url(#frame)">
-    <rect width="400" height="480" fill="url(#sky)"/>
-    <!-- облака -->
-    <g fill="#fff" opacity=".9">
-      <g class="cloud" style="animation-duration:38s;animation-delay:-10s"><ellipse cx="60" cy="70" rx="40" ry="16"/><ellipse cx="85" cy="60" rx="28" ry="18"/><ellipse cx="35" cy="64" rx="22" ry="14"/></g>
-      <g class="cloud" style="animation-duration:52s;animation-delay:-30s"><ellipse cx="60" cy="130" rx="30" ry="12"/><ellipse cx="80" cy="122" rx="22" ry="14"/></g>
-    </g>
-    <!-- замок -->
-    <g fill="#8fa4c9" opacity=".75">
-      <rect x="20" y="250" width="60" height="140"/><rect x="14" y="236" width="72" height="18"/>
-      <rect x="20" y="222" width="10" height="16"/><rect x="38" y="222" width="10" height="16"/><rect x="56" y="222" width="10" height="16"/><rect x="72" y="222" width="10" height="16"/>
-      <rect x="300" y="230" width="80" height="160"/><rect x="292" y="214" width="96" height="18"/>
-      <rect x="300" y="198" width="12" height="18"/><rect x="322" y="198" width="12" height="18"/><rect x="344" y="198" width="12" height="18"/><rect x="366" y="198" width="12" height="18"/>
-      <rect x="340" y="120" width="26" height="100"/><polygon points="334,124 353,84 372,124"/>
-      <rect x="0" y="330" width="400" height="80"/>
-    </g>
-    <path class="flag" d="M353,84 L353,66 L378,72 L353,80Z" fill="#d63a3a"/>
-    <g fill="#5d6fa0" opacity=".6"><rect x="40" y="290" width="14" height="24" rx="7"/><rect x="326" y="270" width="14" height="24" rx="7"/><rect x="350" y="270" width="14" height="24" rx="7"/></g>
-    <!-- холм -->
-    <path d="M0,400 Q120,360 240,395 T400,380 L400,480 L0,480Z" fill="#6aa85a"/>
-    <path d="M0,420 Q140,395 400,430 L400,480 L0,480Z" fill="#4f8f47"/>
-
-    <!-- плащ -->
-    <g id="cape">
-      <path d="M118,352 C90,400 80,450 84,480 L316,480 C320,450 310,400 282,352 Q200,330 118,352Z" fill="url(#cape)"/>
-      <path d="M140,360 C120,410 112,450 112,480 M260,360 C280,410 288,450 288,480" stroke="#7a1520" stroke-width="3" fill="none" opacity=".4"/>
-    </g>
-
-    <!-- волосы сзади -->
-    <g id="hairBack"><path d="M120,200 C106,104 294,100 280,200 C286,222 282,238 270,244 L130,244 C118,238 114,222 120,200Z" fill="url(#hair)"/></g>
-
-    <!-- мундир -->
-    <g id="body">
-      <path d="M116,352 Q200,318 284,352 L292,480 L108,480Z" fill="url(#coat)"/>
-      <path d="M200,346 L200,480" stroke="#ffd45e" stroke-width="3" opacity=".9"/>
-      <g fill="url(#gold)"><circle cx="186" cy="380" r="5"/><circle cx="214" cy="380" r="5"/><circle cx="186" cy="410" r="5"/><circle cx="214" cy="410" r="5"/><circle cx="186" cy="440" r="5"/><circle cx="214" cy="440" r="5"/></g>
-      <!-- эполеты -->
-      <g fill="url(#gold)">
-        <ellipse cx="122" cy="352" rx="30" ry="12"/><ellipse cx="278" cy="352" rx="30" ry="12"/>
-        <path d="M96,356 l-4,16 M104,360 l-3,16 M112,362 l-2,16 M120,363 l-1,16 M128,363 l1,16 M136,362 l2,16 M144,360 l3,16" stroke="#e0b53a" stroke-width="3" stroke-linecap="round"/>
-        <path d="M304,356 l4,16 M296,360 l3,16 M288,362 l2,16 M280,363 l1,16 M272,363 l-1,16 M264,362 l-2,16 M256,360 l-3,16" stroke="#e0b53a" stroke-width="3" stroke-linecap="round"/>
-      </g>
-      <!-- лента -->
-      <path d="M150,350 L250,470" stroke="#ffd45e" stroke-width="12" opacity=".85"/>
-      <circle cx="248" cy="466" r="12" fill="url(#gold)"/><circle cx="248" cy="466" r="5" fill="#d63a3a"/>
-      <!-- воротник -->
-      <path d="M160,338 Q200,312 240,338 L232,352 Q200,340 168,352Z" fill="#fff"/>
-    </g>
-
-    <!-- шея -->
-    <rect x="182" y="268" width="36" height="60" rx="16" fill="#ecb896"/>
-
-    <!-- голова -->
-    <g id="head">
-      <path d="M124,204 C120,116 280,116 276,204 C278,262 242,300 200,300 C158,300 122,262 124,204Z" fill="url(#skin)"/>
-      <ellipse cx="124" cy="212" rx="9" ry="13" fill="#ecb896"/><ellipse cx="276" cy="212" rx="9" ry="13" fill="#ecb896"/>
-      <ellipse cx="154" cy="242" rx="14" ry="8" fill="#ff8a7a" opacity=".28"/>
-      <ellipse cx="246" cy="242" rx="14" ry="8" fill="#ff8a7a" opacity=".28"/>
-      <path d="M182,284 Q200,292 218,284" stroke="#d9a07f" stroke-width="2" fill="none" opacity=".6"/>
-
-      <g id="brows" stroke="#3f2410" stroke-width="5" fill="none" stroke-linecap="round">
-        <path d="M148,180 Q170,166 192,176"/><path d="M252,180 Q230,166 208,176"/>
-      </g>
-
-      <g id="eyeL" class="eye">
-        <ellipse cx="170" cy="206" rx="15" ry="16" fill="#fff"/>
-        <g class="pupil"><circle cx="171" cy="208" r="10" fill="#5a3a1e"/><circle cx="171" cy="208" r="5" fill="#0b0b12"/><circle cx="175" cy="203" r="3" fill="#fff"/></g>
-        <path d="M154,200 Q170,187 186,200" stroke="#2a1a10" stroke-width="3" fill="none" stroke-linecap="round"/>
-      </g>
-      <g id="eyeR" class="eye">
-        <ellipse cx="230" cy="206" rx="15" ry="16" fill="#fff"/>
-        <g class="pupil"><circle cx="229" cy="208" r="10" fill="#5a3a1e"/><circle cx="229" cy="208" r="5" fill="#0b0b12"/><circle cx="233" cy="203" r="3" fill="#fff"/></g>
-        <path d="M214,200 Q230,187 246,200" stroke="#2a1a10" stroke-width="3" fill="none" stroke-linecap="round"/>
-      </g>
-
-      <path d="M198,226 q7,10 -1,16" stroke="#d09272" stroke-width="2.6" fill="none" stroke-linecap="round"/>
-
-      <!-- рот -->
-      <path id="mouth" d="" fill="#4a1a1e" stroke="#c9836a" stroke-width="4.5" stroke-linejoin="round"/>
-      <g clip-path="url(#mouthClip)">
-        <ellipse id="tongue" cx="200" cy="290" rx="16" ry="8" fill="#e06a76"/>
-        <ellipse id="teeth" cx="200" cy="258" rx="15" ry="4" fill="#fff"/>
-      </g>
-
-      <!-- волосы спереди + корона -->
-      <g id="hairFront">
-        <path d="M122,200 C110,110 160,84 206,104 C236,84 292,108 278,200 C268,160 248,150 226,166 C216,138 190,130 168,148 C152,160 134,176 122,200Z" fill="url(#hair)"/>
-        <path d="M150,170 C160,140 186,126 210,128" stroke="#a2703f" stroke-width="3" fill="none" opacity=".6" stroke-linecap="round"/>
-        <g id="crown" transform="translate(200,98)">
-          <path d="M-46,10 L-38,-30 L-18,-6 L0,-38 L18,-6 L38,-30 L46,10 Z" fill="url(#gold)" stroke="#b07f14" stroke-width="2" stroke-linejoin="round"/>
-          <rect x="-46" y="6" width="92" height="14" rx="4" fill="url(#gold)" stroke="#b07f14" stroke-width="2"/>
-          <circle cx="0" cy="-30" r="5" fill="#d63a3a"/><circle cx="-38" cy="-24" r="4" fill="#2f8fdc"/><circle cx="38" cy="-24" r="4" fill="#2f8fdc"/>
-          <circle cx="-20" cy="13" r="3.5" fill="#d63a3a"/><circle cx="0" cy="13" r="3.5" fill="#2f8fdc"/><circle cx="20" cy="13" r="3.5" fill="#d63a3a"/>
-        </g>
-      </g>
-    </g>
-  </g>
-</svg>
-</div>
-
+<div class="stage"></div>
 <div class="panel">
   <button id="micBtn">🎙 Включить микрофон</button>
   <select id="devSel" hidden title="Какой микрофон слушать"></select>
@@ -186,48 +70,10 @@ input[type=range]{width:110px;accent-color:var(--accent)}
   <span class="pitch" id="pitch"></span>
   <div class="status" id="status">Микрофон выключен</div>
 </div>
-<div class="hint" id="hint">Тап по персонажу — его перезвон: слово переходит к нему на всех устройствах</div>
-
-<script>
-const $=s=>document.querySelector(s);
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const el={head:$('#head'),brows:$('#brows'),mouth:$('#mouth'),clip:$('#mouthClipPath'),
-  tongue:$('#tongue'),teeth:$('#teeth'),hairBack:$('#hairBack'),hairFront:$('#hairFront'),crown:$('#crown'),
-  cape:$('#cape'),body:$('#body'),
-  eyes:[$('#eyeL'),$('#eyeR')],pupils:document.querySelectorAll('.pupil')};
-const EYE=[{x:170,y:206},{x:230,y:206}];
-
-function render(t,blink,S,dt){
-  const o=S.open, L=S.level, tk=S.talk;
-  // рот
-  const y0=262, cy=y0+o*4, top=y0-o*9, bot=y0+5+o*36;
-  const d=`M182,${cy} Q200,${top} 218,${cy} Q200,${bot} 182,${cy} Z`;
-  el.mouth.setAttribute('d',d); el.clip.setAttribute('d',d);
-  el.tongue.setAttribute('cy',bot-4); el.tongue.setAttribute('ry',4+o*10);
-  el.teeth.setAttribute('cy',top+3); el.teeth.setAttribute('opacity',o>0.25?1:0);
-  // голова — уверенные кивки
-  const tilt=Math.sin(t*0.6)*1.5+Math.sin(t*4.2)*3*tk*L;
-  const bob=Math.sin(t*1.2)*2-Math.abs(Math.sin(t*7.5))*6*L;
-  el.head.setAttribute('transform',`translate(0 ${bob.toFixed(2)}) rotate(${tilt.toFixed(2)} 200 330)`);
-  el.hairBack.setAttribute('transform',`translate(0 ${(bob*0.8).toFixed(2)}) rotate(${(tilt*0.7).toFixed(2)} 200 330)`);
-  el.crown.setAttribute('transform',`translate(200 ${(98-2*L).toFixed(2)}) rotate(${(Math.sin(t*8)*2*L).toFixed(2)})`);
-  // плащ колышется
-  el.cape.setAttribute('transform',`rotate(${(Math.sin(t*0.9)*1.2+Math.sin(t*5)*1.5*L).toFixed(2)} 200 352) translate(0 ${(Math.sin(t*1.2)*1.2).toFixed(2)})`);
-  el.body.setAttribute('transform',`translate(0 ${(Math.sin(t*1.2)*1.2).toFixed(2)})`);
-  // брови
-  el.brows.setAttribute('transform',`translate(0 ${(-6*L).toFixed(2)})`);
-  // глаза
-  const widen=1+0.08*clamp((L-0.7)/0.3,0,1);
-  el.eyes.forEach((e,i)=>{const c=EYE[i];
-    e.setAttribute('transform',`translate(${c.x} ${c.y}) scale(${widen} ${((1-blink*0.96)*widen).toFixed(3)}) translate(${-c.x} ${-c.y})`);});
-  const gx=S.gaze.x*4, gy=S.gaze.y*3-1.5*tk;
-  el.pupils.forEach(p=>p.setAttribute('transform',`translate(${gx.toFixed(2)} ${gy.toFixed(2)})`));
-}
-window.CHAR={id:'prince',name:'Принц',gen:'Принца',
-  phrases:['Я искал вас по всему королевству!','Позвольте пригласить вас на танец.','Мой конь устал, а я — нет!','Клянусь честью принца!','Кто здесь самая прекрасная? Не отвечайте, я знаю.','Дракон? Какой дракон? А, этот… Уже улетел.'],
-  tts:{pitch:0.7,rate:0.95}, defaultVoice:'any', render};
-</script>
-<script src="tones.js?v=13"></script>
-<script src="core.js?v=13"></script>
+<div class="hint" id="hint">Тап по персонажу — его аккорд: слово переходит к нему на всех устройствах</div>
+<script>window.TH_DEFAULT='prince';</script>
+<script src="tones.js?v=14"></script>
+<script src="chars.js?v=14"></script>
+<script src="core.js?v=14"></script>
 </body>
 </html>

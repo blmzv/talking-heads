@@ -1,81 +1,93 @@
-/* Общий движок говорящих персонажей. Требует tones.js.
-   Страница задаёт window.CHAR = {id, name, gen, phrases, tts:{pitch,rate}, defaultVoice:'any'|'female'|'male', render(t,blink,S,dt)} */
+/* Общий движок говорящих персонажей (одна сцена, персонажи переключаются без перезагрузки).
+   Требует tones.js и chars.js. Страница задаёт window.TH_DEFAULT — персонаж по умолчанию. */
 (function(){
-const TH_VERSION='v13';
-const C=window.CHAR;
+const TH_VERSION='v14';
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
 const smooth=(cur,target,tau,dt)=>lerp(cur,target,1-Math.exp(-dt/tau));
 const load=(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:v;}catch(e){return d;}};
 const save=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
-// ---------- журнал ----------
-const LOG=[]; const t0=performance.now();
-function log(msg){
-  const ts=((performance.now()-t0)/1000).toFixed(1).padStart(6);
-  LOG.push(ts+'  '+msg); if(LOG.length>300) LOG.shift();
-  const box=document.getElementById('logBox'); if(box&&!box.hidden){ box.querySelector('pre').textContent=LOG.slice(-80).join('\n'); box.querySelector('pre').scrollTop=1e9; }
-}
-(function(){
-  const box=document.createElement('div'); box.id='logBox'; box.hidden=true;
-  box.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;max-height:45vh;background:rgba(20,20,30,.94);color:#dfe;border-radius:14px;padding:10px;font:12px/1.35 ui-monospace,Menlo,monospace;z-index:50;display:flex;flex-direction:column;gap:8px';
-  box.innerHTML='<div style="display:flex;gap:8px;align-items:center"><b style="flex:1">Журнал</b><button id="logCopy" style="padding:6px 12px;font-size:12px">Копировать</button><button id="logClear" style="padding:6px 12px;font-size:12px">Очистить</button><button id="logClose" style="padding:6px 12px;font-size:12px">Закрыть</button></div><pre style="margin:0;overflow:auto;white-space:pre-wrap;flex:1"></pre>';
-  const st=document.createElement('style'); st.textContent='#logBox[hidden]{display:none!important}'; document.head.appendChild(st);
-  document.body.appendChild(box);
-  box.querySelector('#logClose').onclick=()=>{box.hidden=true;};
-  box.querySelector('#logClear').onclick=()=>{LOG.length=0;box.querySelector('pre').textContent='';};
-  box.querySelector('#logCopy').onclick=async()=>{
-    const txt=['== '+C.name+' · '+navigator.userAgent,'voiceGate='+voiceGate+' sig='+S.sig+' floor='+S.floor+' mode='+S.mode].concat(LOG).join('\n');
-    try{ await navigator.clipboard.writeText(txt); showBubble('Журнал скопирован',2000); }
-    catch(e){ const r=document.createRange(); r.selectNodeContents(box.querySelector('pre')); const sel=getSelection(); sel.removeAllRanges(); sel.addRange(r); showBubble('Выделено — скопируйте вручную',3000); }
-  };
-  const btn=document.createElement('button'); btn.id='logBtn'; btn.textContent='🐞 Лог';
-  btn.onclick=()=>{ box.hidden=!box.hidden; if(!box.hidden){ box.querySelector('pre').textContent=LOG.slice(-80).join('\n'); } };
-  document.querySelector('.panel').appendChild(btn);
-})();
 
+let C=null, render=null;              // текущий персонаж и его функция анимации
 const S={raw:0,level:0,talk:0,open:0,mode:'idle',prevMode:'idle',
   blinkT:-1,nextBlink:1.5,gaze:{x:0,y:0,tx:0,ty:0,next:1.5},
   demoTarget:0,demoNext:0,keyHeld:false,sig:false,floor:'none',
   pitch:-1,voice:null,voiceT:-10,vm:0.5,bubT:0,gated:false};
 let audio=null;
-const DEV_KEY='th_dev_'+C.id, VOICE_KEY='th_voice2_'+C.id;
-const SPLIT_HZ=165;           // ниже — мужской, выше — женский
-let voiceGate=load(VOICE_KEY,C.defaultVoice||'any');
-$('#voiceSel').value=voiceGate;
-$('#voiceSel').onchange=e=>{voiceGate=e.target.value;save(VOICE_KEY,voiceGate);log('voiceGate → '+voiceGate);};
-log('старт '+TH_VERSION+': voiceGate='+voiceGate);
-(function(){const v=document.createElement('span');v.textContent=TH_VERSION;v.style.cssText='font-size:11px;opacity:.5;font-weight:700';document.querySelector('.panel').appendChild(v);})();
+const DEV_KEY='th_dev', VOICE_KEY='th_voice3', SIG_KEY='th_sig', MIC_KEY='th_mic_on', LAST_KEY='th_last_char';
+const SPLIT_HZ=165;
+let voiceGate=load(VOICE_KEY,'any');
 
-
-// ---------- переключатель персонажей ----------
+// ---------- журнал ----------
+const LOG=[]; const t0=performance.now();
+function log(msg){
+  const ts=((performance.now()-t0)/1000).toFixed(1).padStart(6);
+  LOG.push(ts+'  '+msg); if(LOG.length>300) LOG.shift();
+  const box=document.getElementById('logBox'); if(box&&!box.hidden){ const pre=box.querySelector('pre'); pre.textContent=LOG.slice(-80).join('\n'); pre.scrollTop=1e9; }
+}
 (function(){
-  const pages=[['rusalochka','🧜‍♀️ Русалочка','rusalochka.html'],['belosnezhka','🍎 Белоснежка','belosnezhka.html'],['prince','👑 Принц','prince.html'],['pult','🔔 Пульт','pult.html']];
-  const nav=document.createElement('nav');
-  nav.style.cssText='display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding:10px 16px 0';
-  pages.forEach(([id,label,href])=>{
-    const a=document.createElement('a'); a.href=href; a.textContent=label;
-    const cur=id===C.id;
-    a.style.cssText='text-decoration:none;font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px;color:inherit;background:rgba(255,255,255,.45);opacity:.85'+(cur?';background:var(--accent);color:#fff;opacity:1;pointer-events:none':'');
-    nav.appendChild(a);
-  });
-  const h=document.querySelector('header'); h.parentNode.insertBefore(nav,h.nextSibling);
+  const st=document.createElement('style'); st.textContent='#logBox[hidden]{display:none!important}'; document.head.appendChild(st);
+  const box=document.createElement('div'); box.id='logBox'; box.hidden=true;
+  box.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;max-height:45vh;background:rgba(20,20,30,.94);color:#dfe;border-radius:14px;padding:10px;font:12px/1.35 ui-monospace,Menlo,monospace;z-index:50;display:flex;flex-direction:column;gap:8px';
+  box.innerHTML='<div style="display:flex;gap:8px;align-items:center"><b style="flex:1">Журнал</b><button id="logCopy" style="padding:6px 12px;font-size:12px">Копировать</button><button id="logClear" style="padding:6px 12px;font-size:12px">Очистить</button><button id="logClose" style="padding:6px 12px;font-size:12px">Закрыть</button></div><pre style="margin:0;overflow:auto;white-space:pre-wrap;flex:1"></pre>';
+  document.body.appendChild(box);
+  box.querySelector('#logClose').onclick=()=>{box.hidden=true;};
+  box.querySelector('#logClear').onclick=()=>{LOG.length=0;box.querySelector('pre').textContent='';};
+  box.querySelector('#logCopy').onclick=async()=>{
+    const txt=['== '+(C?C.name:'?')+' · '+TH_VERSION+' · '+navigator.userAgent,'voiceGate='+voiceGate+' sig='+S.sig+' floor='+S.floor+' mode='+S.mode].concat(LOG).join('\n');
+    try{ await navigator.clipboard.writeText(txt); showBubble('Журнал скопирован',2000); }
+    catch(e){ const r=document.createRange(); r.selectNodeContents(box.querySelector('pre')); const sel=getSelection(); sel.removeAllRanges(); sel.addRange(r); showBubble('Выделено — скопируйте вручную',3000); }
+  };
+  const btn=document.createElement('button'); btn.id='logBtn'; btn.textContent='🐞 Лог';
+  btn.onclick=()=>{ box.hidden=!box.hidden; if(!box.hidden){ box.querySelector('pre').textContent=LOG.slice(-80).join('\n'); } };
+  $('.panel').appendChild(btn);
+  const v=document.createElement('span'); v.textContent=TH_VERSION; v.style.cssText='font-size:11px;opacity:.5;font-weight:700'; $('.panel').appendChild(v);
 })();
 
+// ---------- переключатель персонажей (без перезагрузки) ----------
+const NAV=[['rusalochka','🧜‍♀️ Русалочка'],['belosnezhka','🍎 Белоснежка'],['prince','👑 Принц']];
+const nav=document.createElement('nav');
+nav.style.cssText='display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding:10px 16px 0';
+NAV.forEach(([id,label])=>{
+  const a=document.createElement('a'); a.href='#'+id; a.dataset.id=id; a.textContent=label;
+  a.onclick=e=>{e.preventDefault(); setCharacter(id);};
+  nav.appendChild(a);
+});
+const pl=document.createElement('a'); pl.href='pult.html'; pl.textContent='🔔 Пульт'; nav.appendChild(pl);
+function styleNav(){
+  nav.querySelectorAll('a').forEach(a=>{
+    const cur=a.dataset.id===(C&&C.id);
+    a.style.cssText='text-decoration:none;font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px;color:inherit;background:rgba(255,255,255,.45);opacity:.85;cursor:pointer'+(cur?';background:var(--accent);color:#fff;opacity:1;pointer-events:none':'');
+  });
+}
+{ const h=$('header'); h.parentNode.insertBefore(nav,h.nextSibling); }
+
+function setCharacter(id){
+  const ch=TH_CHARS[id]; if(!ch) return;
+  C=ch; save(LAST_KEY,id);
+  const th=ch.theme, r=document.documentElement.style;
+  for(const k in th) r.setProperty('--'+k,th[k]);
+  document.title=ch.name; $('h1').firstChild.textContent=ch.name+' '; $('h1 small').textContent=ch.subtitle;
+  $('.stage').innerHTML=ch.svg;
+  render=ch.mount($('#char'));
+  try{ history.replaceState(null,'','#'+id); }catch(e){}
+  styleNav(); setFloor('none'); log('персонаж: '+ch.name);
+}
+
 // ---------- аудио ----------
-function savedDevice(){ return load(DEV_KEY,''); }
 async function listDevices(){
   try{
     const devs=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='audioinput');
-    const sel=$('#devSel'); const cur=audio?audio.stream.getAudioTracks()[0].getSettings().deviceId:savedDevice();
+    const sel=$('#devSel'); const cur=audio?audio.stream.getAudioTracks()[0].getSettings().deviceId:load(DEV_KEY,'');
     sel.innerHTML='';
     devs.forEach((d,i)=>{const o=document.createElement('option');o.value=d.deviceId;o.textContent=d.label||('Микрофон '+(i+1));if(d.deviceId===cur)o.selected=true;sel.appendChild(o);});
     sel.hidden=devs.length<2;
   }catch(e){console.warn(e);}
 }
-async function startMic(deviceId){
+async function startMic(deviceId,quiet){
   try{
-    deviceId=deviceId||savedDevice();
+    deviceId=deviceId||load(DEV_KEY,'');
     const audioC={echoCancellation:false,noiseSuppression:false,autoGainControl:false};
     if(deviceId) audioC.deviceId={exact:deviceId};
     let stream;
@@ -90,29 +102,29 @@ async function startMic(deviceId){
     audio.det=new ThToneDetector(analyser,ctx.sampleRate,onTone);
     if(ctx.state==='suspended') await ctx.resume();
     setMode('mic'); $('#micBtn').classList.add('on'); $('#micBtn').textContent='⏹ Выключить микрофон';
-    const used=stream.getAudioTracks()[0]; save(DEV_KEY,used.getSettings().deviceId||'');
+    const used=stream.getAudioTracks()[0]; save(DEV_KEY,used.getSettings().deviceId||''); save(MIC_KEY,'1');
     await listDevices();
     showBubble('Слушаю: '+(used.label||'микрофон'),2500);
     log('микрофон: '+(used.label||'?')+' sr='+ctx.sampleRate+' state='+ctx.state+' settings='+JSON.stringify(used.getSettings()));
+    stream.getAudioTracks()[0].onended=()=>{ log('микрофон: поток завершён системой'); stopMic(true); };
   }catch(e){
     console.error(e); log('микрофон ОШИБКА: '+e.name+' '+e.message);
-    $('#status').textContent='Нет доступа к микрофону';
-    showBubble('Микрофон не дали… Нажмите «Демо» или держите пробел');
+    if(!quiet){ $('#status').textContent='Нет доступа к микрофону'; showBubble('Микрофон не дали… Нажмите «Демо» или держите пробел'); }
   }
 }
-function stopMic(){
+function stopMic(keepFlag){
   if(audio){ audio.stream.getTracks().forEach(t=>t.stop()); audio.ctx.close(); audio=null; }
+  if(!keepFlag) save(MIC_KEY,'0');
   $('#micBtn').classList.remove('on'); $('#micBtn').textContent='🎙 Включить микрофон';
   if(S.mode==='mic') setMode('idle');
 }
-// RMS + основной тон (автокорреляция на сигнале, прореженном вдвое)
 function readMic(){
   const {analyser,data,ds,ctx}=audio; analyser.getFloatTimeDomainData(data);
   let sum=0; for(let i=0;i<data.length;i++) sum+=data[i]*data[i];
   const rms=Math.sqrt(sum/data.length);
   S.pitch=-1;
   if(rms>0.008){
-    const N=ds.length; for(let i=0;i<N;i++) ds[i]=(data[2*i]+data[2*i+1])*0.5;   // первые 2048 отсчётов → 1024 при sr/2
+    const N=ds.length; for(let i=0;i<N;i++) ds[i]=(data[2*i]+data[2*i+1])*0.5;
     S.pitch=detectPitch(ds,ctx.sampleRate/2);
   }
   return rms;
@@ -126,8 +138,8 @@ function detectPitch(buf,sr){
     const n=c/Math.sqrt(e1*e2+1e-12); corr[lag]=n;
     if(n>best){best=n;bestLag=lag;}
   }
-  if(best<0.55) return -1;                       // шум или глухой согласный
-  for(let lag=minLag;lag<bestLag;lag++){          // защита от октавной ошибки вниз
+  if(best<0.55) return -1;
+  for(let lag=minLag;lag<bestLag;lag++){
     if(corr[lag]>=best*0.9 && corr[lag]>corr[lag-1]&&corr[lag]>=corr[lag+1]){bestLag=lag;break;}
   }
   return sr/bestLag;
@@ -164,15 +176,14 @@ function say(){
   }else{ setMode('speak'); setTimeout(()=>{S.mode=back;},3000); }
 }
 
-// ---------- сигналы (передача слова перезвоном) ----------
+// ---------- сигналы (передача слова аккордом) ----------
 let otherGen='';
-const HINT_DEFAULT='Тап по персонажу — его перезвон: слово переходит к нему на всех устройствах';
+const HINT_DEFAULT='Тап по персонажу — его аккорд: слово переходит к нему на всех устройствах';
 const HINT_OFF='Держите пробел или палец на персонаже — «заговорит» без микрофона';
-const SIG_KEY='th_sig_'+C.id;
 function setFloor(f,who){
   if(f!==S.floor) log('слово: '+S.floor+' → '+f+(who?' ('+who+')':''));
   S.floor=f; if(who) otherGen=who;
-  $('#char').classList.toggle('muted',S.sig&&f!=='me');
+  const svg=$('#char'); if(svg) svg.classList.toggle('muted',S.sig&&f!=='me');
   const b=$('#floor'); b.hidden=!S.sig; b.classList.toggle('me',f==='me');
   b.textContent= f==='me'?'Слово у '+C.gen:f==='other'?'Слово у '+otherGen:'Слово свободно';
 }
@@ -193,20 +204,29 @@ function setSig(on){
 function chimeMe(){ thPlayTone(C.id); setFloor('me'); }
 
 // ---------- UI ----------
+$('#voiceSel').value=voiceGate;
+$('#voiceSel').onchange=e=>{voiceGate=e.target.value;save(VOICE_KEY,voiceGate);log('voiceGate → '+voiceGate);};
 $('#micBtn').onclick=()=>audio?stopMic():startMic();
 $('#devSel').onchange=e=>{ save(DEV_KEY,e.target.value); startMic(e.target.value); };
 if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange',listDevices);
 $('#demoBtn').onclick=()=>{ if(S.mode==='demo'){setMode(audio?'mic':'idle');} else setMode('demo'); };
 $('#sayBtn').onclick=say;
 $('#sigBtn').onclick=()=>setSig(!S.sig);
-setSig(load(SIG_KEY,'1')==='1');
 addEventListener('keydown',e=>{ if(e.code==='Space'){e.preventDefault();S.keyHeld=true;} });
 addEventListener('keyup',e=>{ if(e.code==='Space')S.keyHeld=false; });
-const svgEl=$('#char'); svgEl.style.touchAction='none';
-svgEl.addEventListener('pointerdown',e=>{e.preventDefault(); log('тап по персонажу'); if(S.sig){chimeMe();} else S.keyHeld=true;});
-['pointerup','pointercancel','pointerleave'].forEach(ev=>svgEl.addEventListener(ev,()=>{S.keyHeld=false;}));
-svgEl.addEventListener('contextmenu',e=>e.preventDefault());
+const stage=$('.stage'); stage.style.touchAction='none';
+stage.addEventListener('pointerdown',e=>{ if(!e.target.closest('svg')) return; e.preventDefault(); log('тап по персонажу'); if(S.sig){chimeMe();} else S.keyHeld=true;});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>stage.addEventListener(ev,()=>{S.keyHeld=false;}));
+stage.addEventListener('contextmenu',e=>e.preventDefault());
 if('speechSynthesis' in window) speechSynthesis.getVoices();
+
+// ---------- старт ----------
+const startId=(location.hash||'').slice(1);
+setCharacter(TH_CHARS[startId]?startId:(window.TH_DEFAULT||load(LAST_KEY,'rusalochka')));
+addEventListener('hashchange',()=>{ const id=location.hash.slice(1); if(TH_CHARS[id]&&(!C||C.id!==id)) setCharacter(id); });
+setSig(load(SIG_KEY,'1')==='1');
+log('старт '+TH_VERSION+': voiceGate='+voiceGate);
+if(load(MIC_KEY,'0')==='1'){ startMic('',true).then(()=>{ if(!audio){ $('#status').textContent='Нажмите «Включить микрофон»'; } }); }
 
 // ---------- главный цикл ----------
 const meter=$('#meter'), status=$('#status'), pitchEl=$('#pitch');
@@ -216,7 +236,6 @@ function frame(now){
   let target=0, rawTarget=0; S.gated=false;
   if(S.mode==='mic'&&audio){
     S.raw=readMic(); rawTarget=target=micTarget(S.raw);
-    // голос: мужской / женский
     if(S.pitch>0&&rawTarget>0.05){ S.vm=smooth(S.vm,S.pitch<SPLIT_HZ?1:0,0.06,dt); S.voiceT=t; S.voice=S.vm>0.5?'male':'female'; }
     if(t-S.voiceT>0.6){ S.voice=null; S.vm=0.5; }
     if(voiceGate!=='any'&&S.voice!==voiceGate){ target=0; S.gated=rawTarget>0.1; }
@@ -239,14 +258,14 @@ function frame(now){
   if(S.gaze.next<=0){S.gaze.tx=(Math.random()*2-1);S.gaze.ty=(Math.random()*2-1)*0.6;S.gaze.next=1.2+Math.random()*3;}
   S.gaze.x=smooth(S.gaze.x,S.gaze.tx,0.25,dt); S.gaze.y=smooth(S.gaze.y,S.gaze.ty,0.25,dt);
 
-  if(S.mode==='mic'){
+  if(S.mode==='mic'&&audio){
     S._acc=S._acc||{n:0,p:[],lvl:0,g:0,t:0}; const A=S._acc; A.t+=dt;
     if(rawTarget>0.05){A.n++;A.lvl=Math.max(A.lvl,rawTarget);if(S.pitch>0)A.p.push(Math.round(S.pitch));if(S.gated)A.g++;}
     if(A.t>=0.5){ if(A.n>0){ const med=A.p.length?A.p.sort((a,b)=>a-b)[A.p.length>>1]:'-';
-        log('звук: пик='+A.lvl.toFixed(2)+' тон≈'+med+'Гц голос='+(S.voice||'?')+' voiced='+A.p.length+'/'+A.n+(A.g?' ОТСЕЧЕНО':'')+(S.sig?' слово='+S.floor:'')+(audio.det&&audio.det.lastScore>3?' тон='+audio.det.lastKey+':'+audio.det.lastScore.toFixed(0):'')+' open='+S.open.toFixed(2)); }
+        log('звук: пик='+A.lvl.toFixed(2)+' тон≈'+med+'Гц голос='+(S.voice||'?')+' voiced='+A.p.length+'/'+A.n+(A.g?' ОТСЕЧЕНО':'')+(S.sig?' слово='+S.floor:'')+(audio.det.lastScore>3?' аккорд='+audio.det.lastKey+':'+audio.det.lastScore.toFixed(0):'')+' open='+S.open.toFixed(2)); }
       S._acc={n:0,p:[],lvl:0,g:0,t:0}; }
   }
-  C.render(t,blink,S,dt);
+  if(render) render(t,blink,S,dt);
 
   meter.style.width=(S.level*100).toFixed(0)+'%';
   if(S.mode==='mic'&&audio&&audio.det&&audio.det.lastScore>=4){ const d=audio.det; pitchEl.textContent='🎵 '+(TH_TONES[d.lastKey]||{}).chord+' '+d.lastScore.toFixed(0)+' дБ'; pitchEl.style.color=d.lastScore>=d.minProm?'#0a7d2a':''; }
@@ -261,5 +280,5 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__TH={S,setFloor,detectPitch,onTone,get audio(){return audio;}};
+window.__TH={S,setFloor,detectPitch,onTone,setCharacter,get audio(){return audio;},get C(){return C;}};
 })();
