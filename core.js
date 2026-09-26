@@ -1,7 +1,7 @@
 /* Общий движок говорящих персонажей (одна сцена, персонажи переключаются без перезагрузки).
    Требует tones.js и chars.js. Страница задаёт window.TH_DEFAULT — персонаж по умолчанию. */
 (function(){
-const TH_VERSION='v14';
+const TH_VERSION='v15';
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -13,7 +13,7 @@ let C=null, render=null;              // текущий персонаж и ег
 const S={raw:0,level:0,talk:0,open:0,mode:'idle',prevMode:'idle',
   blinkT:-1,nextBlink:1.5,gaze:{x:0,y:0,tx:0,ty:0,next:1.5},
   demoTarget:0,demoNext:0,keyHeld:false,sig:false,floor:'none',
-  pitch:-1,voice:null,voiceT:-10,vm:0.5,bubT:0,gated:false};
+  pitch:-1,voice:null,voiceT:-10,vm:0.5,bubT:0,gated:false,peakEnv:0.03,gain:1};
 let audio=null;
 const DEV_KEY='th_dev', VOICE_KEY='th_voice3', SIG_KEY='th_sig', MIC_KEY='th_mic_on', LAST_KEY='th_last_char';
 const SPLIT_HZ=165;
@@ -235,7 +235,11 @@ function frame(now){
   const dt=Math.min(0.05,(now-last)/1000); last=now; const t=now/1000;
   let target=0, rawTarget=0; S.gated=false;
   if(S.mode==='mic'&&audio){
-    S.raw=readMic(); rawTarget=target=micTarget(S.raw);
+    S.raw=readMic();
+    // программное автоусиление: тихий микрофон (iPad) подтягиваем к уровню ~0.15 по пикам последних секунд
+    S.peakEnv=Math.max(S.raw, S.peakEnv*Math.exp(-dt/4));
+    S.gain=clamp(0.15/Math.max(S.peakEnv,0.03),1,5);
+    rawTarget=target=micTarget(S.raw*S.gain);
     if(S.pitch>0&&rawTarget>0.05){ S.vm=smooth(S.vm,S.pitch<SPLIT_HZ?1:0,0.06,dt); S.voiceT=t; S.voice=S.vm>0.5?'male':'female'; }
     if(t-S.voiceT>0.6){ S.voice=null; S.vm=0.5; }
     if(voiceGate!=='any'&&S.voice!==voiceGate){ target=0; S.gated=rawTarget>0.1; }
@@ -262,7 +266,7 @@ function frame(now){
     S._acc=S._acc||{n:0,p:[],lvl:0,g:0,t:0}; const A=S._acc; A.t+=dt;
     if(rawTarget>0.05){A.n++;A.lvl=Math.max(A.lvl,rawTarget);if(S.pitch>0)A.p.push(Math.round(S.pitch));if(S.gated)A.g++;}
     if(A.t>=0.5){ if(A.n>0){ const med=A.p.length?A.p.sort((a,b)=>a-b)[A.p.length>>1]:'-';
-        log('звук: пик='+A.lvl.toFixed(2)+' тон≈'+med+'Гц голос='+(S.voice||'?')+' voiced='+A.p.length+'/'+A.n+(A.g?' ОТСЕЧЕНО':'')+(S.sig?' слово='+S.floor:'')+(audio.det.lastScore>3?' аккорд='+audio.det.lastKey+':'+audio.det.lastScore.toFixed(0):'')+' open='+S.open.toFixed(2)); }
+        log('звук: пик='+A.lvl.toFixed(2)+' gain='+S.gain.toFixed(1)+' тон≈'+med+'Гц голос='+(S.voice||'?')+' voiced='+A.p.length+'/'+A.n+(A.g?' ОТСЕЧЕНО':'')+(S.sig?' слово='+S.floor:'')+(audio.det.lastScore>3?' аккорд='+audio.det.lastKey+':'+audio.det.lastScore.toFixed(0):'')+' open='+S.open.toFixed(2)); }
       S._acc={n:0,p:[],lvl:0,g:0,t:0}; }
   }
   if(render) render(t,blink,S,dt);
