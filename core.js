@@ -1,7 +1,7 @@
 /* Общий движок говорящих персонажей. Требует tones.js.
    Страница задаёт window.CHAR = {id, name, gen, phrases, tts:{pitch,rate}, defaultVoice:'any'|'female'|'male', render(t,blink,S,dt)} */
 (function(){
-const TH_VERSION='v12';
+const TH_VERSION='v13';
 const C=window.CHAR;
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -84,9 +84,9 @@ async function startMic(deviceId){
     if(audio){ audio.stream.getTracks().forEach(t=>t.stop()); audio.ctx.close(); audio=null; }
     const ctx=new (window.AudioContext||window.webkitAudioContext)();
     const src=ctx.createMediaStreamSource(stream);
-    const analyser=ctx.createAnalyser(); analyser.fftSize=2048; analyser.smoothingTimeConstant=0;
+    const analyser=ctx.createAnalyser(); analyser.fftSize=4096; analyser.smoothingTimeConstant=0;
     src.connect(analyser);
-    audio={ctx,stream,analyser,data:new Float32Array(analyser.fftSize),ds:new Float32Array(analyser.fftSize/2)};
+    audio={ctx,stream,analyser,data:new Float32Array(analyser.fftSize),ds:new Float32Array(1024)};
     audio.det=new ThToneDetector(analyser,ctx.sampleRate,onTone);
     if(ctx.state==='suspended') await ctx.resume();
     setMode('mic'); $('#micBtn').classList.add('on'); $('#micBtn').textContent='⏹ Выключить микрофон';
@@ -112,7 +112,7 @@ function readMic(){
   const rms=Math.sqrt(sum/data.length);
   S.pitch=-1;
   if(rms>0.008){
-    const N=ds.length; for(let i=0;i<N;i++) ds[i]=(data[2*i]+data[2*i+1])*0.5;
+    const N=ds.length; for(let i=0;i<N;i++) ds[i]=(data[2*i]+data[2*i+1])*0.5;   // первые 2048 отсчётов → 1024 при sr/2
     S.pitch=detectPitch(ds,ctx.sampleRate/2);
   }
   return rms;
@@ -249,7 +249,7 @@ function frame(now){
   C.render(t,blink,S,dt);
 
   meter.style.width=(S.level*100).toFixed(0)+'%';
-  if(S.mode==='mic'&&audio&&audio.det&&audio.det.lastScore>=4){ const d=audio.det; pitchEl.textContent='🔔 '+(TH_TONES[d.lastKey]||{}).name+' '+d.lastScore.toFixed(0)+' дБ'; pitchEl.style.color=d.lastScore>=d.minProm?'#0a7d2a':''; }
+  if(S.mode==='mic'&&audio&&audio.det&&audio.det.lastScore>=4){ const d=audio.det; pitchEl.textContent='🎵 '+(TH_TONES[d.lastKey]||{}).chord+' '+d.lastScore.toFixed(0)+' дБ'; pitchEl.style.color=d.lastScore>=d.minProm?'#0a7d2a':''; }
   else { pitchEl.style.color=''; pitchEl.textContent=(S.mode==='mic'&&S.pitch>0&&rawTarget>0.05)?(Math.round(S.pitch)+' Гц '+(S.voice==='male'?'♂':S.voice==='female'?'♀':'')):''; }
   let st;
   if(S.mode==='mic'){
