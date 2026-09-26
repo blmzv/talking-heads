@@ -2,19 +2,22 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Русалочка</title>
 <style>
 :root{--bg1:#bfeff5;--bg2:#1f6f9c;--ink:#0d3a55;--card:rgba(255,255,255,.6);--accent:#e63a2e}
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%;font-family:"Nunito","Segoe UI",system-ui,sans-serif;color:var(--ink);
   background:radial-gradient(circle at 50% 20%,var(--bg1),var(--bg2) 85%)}
-body{display:flex;flex-direction:column;align-items:center;min-height:100vh}
+body{display:flex;flex-direction:column;align-items:center;min-height:100vh;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
 header{padding:18px 20px 0;text-align:center}
 h1{margin:0;font-size:30px;letter-spacing:.5px}
 h1 small{display:block;font-size:14px;font-weight:400;opacity:.75;margin-top:2px}
 .stage{flex:1;display:flex;align-items:center;justify-content:center;width:100%;max-width:520px;padding:4px 16px}
-svg{width:100%;height:auto;max-height:68vh;filter:drop-shadow(0 18px 28px rgba(0,40,70,.35))}
+svg{width:100%;height:auto;max-height:68vh;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:pointer;filter:drop-shadow(0 18px 28px rgba(0,40,70,.35))}
 .panel{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;background:var(--card);
   backdrop-filter:blur(8px);border-radius:18px;padding:12px 16px;margin:0 16px 22px;box-shadow:0 6px 20px rgba(0,40,70,.15)}
 button{border:0;border-radius:999px;padding:10px 16px;font:inherit;font-weight:700;background:#0d3a55;color:#dff8ff;cursor:pointer;transition:transform .1s,background .2s}
@@ -175,7 +178,7 @@ input[type=range]{width:110px;accent-color:var(--accent)}
   <div class="meter"><i id="meter"></i></div>
   <div class="status" id="status">Микрофон выключен</div>
 </div>
-<div class="hint">Держите пробел — персонаж «заговорит» без микрофона</div>
+<div class="hint">Держите пробел или палец на персонаже — «заговорит» без микрофона</div>
 
 <script>
 const $=s=>document.querySelector(s);
@@ -256,6 +259,10 @@ $('#demoBtn').onclick=()=>{ if(S.mode==='demo'){setMode(audio?'mic':'idle');} el
 $('#sayBtn').onclick=say;
 addEventListener('keydown',e=>{ if(e.code==='Space'){e.preventDefault();S.keyHeld=true;} });
 addEventListener('keyup',e=>{ if(e.code==='Space')S.keyHeld=false; });
+const svgEl=$('#char'); svgEl.style.touchAction='none';
+svgEl.addEventListener('pointerdown',e=>{e.preventDefault();S.keyHeld=true;});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>svgEl.addEventListener(ev,()=>{S.keyHeld=false;}));
+svgEl.addEventListener('contextmenu',e=>e.preventDefault());
 
 // ---------- анимация ----------
 const el={head:$('#head'),brows:$('#brows'),mouth:$('#mouth'),clip:$('#mouthClipPath'),
@@ -303,7 +310,7 @@ function frame(now){
   render(t,blink);
   el.meter.style.width=(S.level*100).toFixed(0)+'%';
   el.status.textContent= S.mode==='mic'?(S.talk>0.5?'Говорит 🗣':'Слушаю…'):
-    S.mode==='demo'?'Демо-режим':S.mode==='speak'?'Говорит сама 🗣':(S.keyHeld?'Говорит (пробел)':'Микрофон выключен');
+    S.mode==='demo'?'Демо-режим':S.mode==='speak'?'Говорит сама 🗣':(S.keyHeld?'Говорит (удержание)':'Микрофон выключен');
   requestAnimationFrame(frame);
 }
 
