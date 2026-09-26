@@ -212,7 +212,36 @@ function spawnBubble(){
   requestAnimationFrame(tick);
 }
 
+function render(t,blink,S,dt){
+  const o=S.open, L=S.level, tk=S.talk;
+  S.bubT-=dt; if(S.talk>0.5&&S.level>0.5&&S.bubT<=0){spawnBubble();S.bubT=0.35+Math.random()*0.5;}
+  // рот
+  const y0=260, cy=y0+o*4, top=y0-o*9, bot=y0+5+o*36;
+  const d=`M183,${cy} Q200,${top} 217,${cy} Q200,${bot} 183,${cy} Z`;
+  el.mouth.setAttribute('d',d); el.clip.setAttribute('d',d);
+  el.tongue.setAttribute('cy',bot-4); el.tongue.setAttribute('ry',4+o*10);
+  el.teeth.setAttribute('cy',top+3); el.teeth.setAttribute('opacity',o>0.25?1:0);
 
+  // голова
+  const tilt=Math.sin(t*0.7)*2+Math.sin(t*4.6)*3.5*tk*L;
+  const bob=Math.sin(t*1.3)*3-Math.abs(Math.sin(t*8.2))*5*L;
+  el.head.setAttribute('transform',`translate(0 ${bob.toFixed(2)}) rotate(${tilt.toFixed(2)} 200 330)`);
+  // волосы плывут
+  const hx=Math.sin(t*0.9)*4, hy=Math.sin(t*1.3+1)*3;
+  el.hairBack.setAttribute('transform',`translate(${hx.toFixed(2)} ${hy.toFixed(2)}) skewX(${(Math.sin(t*0.6)*2).toFixed(2)})`);
+  el.hairFront.setAttribute('transform',`translate(${(hx*0.4).toFixed(2)} ${(Math.sin(t*1.1)*1.5).toFixed(2)})`);
+  // хвост качается
+  const sw=Math.sin(t*1.1)*3+Math.sin(t*6)*3*L;
+  el.tail.setAttribute('transform',`rotate(${sw.toFixed(2)} 200 396)`);
+  // брови
+  el.brows.setAttribute('transform',`translate(0 ${(-7*L).toFixed(2)})`);
+  // глаза
+  const widen=1+0.1*clamp((L-0.7)/0.3,0,1);
+  el.eyes.forEach((e,i)=>{const c=EYE[i];
+    e.setAttribute('transform',`translate(${c.x} ${c.y}) scale(${widen} ${((1-blink*0.96)*widen).toFixed(3)}) translate(${-c.x} ${-c.y})`);});
+  const gx=S.gaze.x*4, gy=S.gaze.y*3-1.5*tk;
+  el.pupils.forEach(p=>p.setAttribute('transform',`translate(${gx.toFixed(2)} ${gy.toFixed(2)})`));
+}
 window.CHAR={id:'rusalochka',name:'Русалочка',gen:'Русалочки',
   roots:{me:'русалоч',others:[{root:'белоснеж',gen:'Белоснежки',name:'Белоснежка'}],release:['принц']},
   phrases:['Я так хочу увидеть мир над волнами!','Слышите? Это шумит море.','На дне морском сегодня тихо-тихо…','Каждая жемчужина — это чья-то сказка.','Идёмте со мной, я покажу вам коралловый сад!','Говорят, у людей вместо хвоста — две ноги. Странно!'],
