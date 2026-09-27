@@ -518,8 +518,9 @@ TH_CHARS.prince={id:'prince',name:'Принц',gen:'Принца',
       if(G.t<0){ G.next-=dt; if(G.next<=0){G.t=0;} }
       let target=0, active=false;
       if(G.t>=0){ G.t+=dt; let acc=0; active=true;
+        const total=PH.reduce((a,p)=>a+p[0],0);
         for(const [d,dir] of PH){ if(G.t<acc+d){ target=dir; break; } acc+=d; }
-        if(G.t>=acc){ G.t=-1; G.next=5+Math.random()*6; target=0; active=false; }
+        if(G.t>=total){ G.t=-1; G.next=5+Math.random()*6; target=0; active=false; }
       }
       const k=1-Math.exp(-dt/0.12);
       G.x+=(target-G.x)*k; G.hx+=(target*0.6-G.hx)*(1-Math.exp(-dt/0.25)); G.brow+=((active?1:0)-G.brow)*(1-Math.exp(-dt/0.2));
