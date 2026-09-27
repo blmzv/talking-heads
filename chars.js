@@ -511,8 +511,23 @@ TH_CHARS.prince={id:'prince',name:'Принц',gen:'Принца',
       eyes:[$('#eyeL'),$('#eyeR')],pupils:root.querySelectorAll('.pupil')};
     const EYE=[{x:170,y:206},{x:230,y:206}];
     
+    // «выбирает между Белоснежкой и Русалочкой»: взгляд влево — пауза — вправо — обратно
+    const G={next:3+Math.random()*3, t:-1, x:0, hx:0, brow:0};
+    const PH=[[0.3,-1],[0.8,-1],[0.45,1],[0.8,1],[0.35,0]];   // [длительность, куда смотреть]
+    function glance(dt){
+      if(G.t<0){ G.next-=dt; if(G.next<=0){G.t=0;} }
+      let target=0, active=false;
+      if(G.t>=0){ G.t+=dt; let acc=0; active=true;
+        for(const [d,dir] of PH){ if(G.t<acc+d){ target=dir; break; } acc+=d; }
+        if(G.t>=acc){ G.t=-1; G.next=5+Math.random()*6; target=0; active=false; }
+      }
+      const k=1-Math.exp(-dt/0.12);
+      G.x+=(target-G.x)*k; G.hx+=(target*0.6-G.hx)*(1-Math.exp(-dt/0.25)); G.brow+=((active?1:0)-G.brow)*(1-Math.exp(-dt/0.2));
+      return active;
+    }
     function render(t,blink,S,dt){
       const o=S.open, L=S.level, tk=S.talk;
+      const choosing=glance(dt);
       // рот
       const y0=262, cy=y0+o*4, top=y0-o*9, bot=y0+5+o*36;
       const d=`M182,${cy} Q200,${top} 218,${cy} Q200,${bot} 182,${cy} Z`;
@@ -520,21 +535,21 @@ TH_CHARS.prince={id:'prince',name:'Принц',gen:'Принца',
       el.tongue.setAttribute('cy',bot-4); el.tongue.setAttribute('ry',4+o*10);
       el.teeth.setAttribute('cy',top+3); el.teeth.setAttribute('opacity',o>0.25?1:0);
       // голова — уверенные кивки
-      const tilt=Math.sin(t*0.6)*1.5+Math.sin(t*4.2)*3*tk*L;
+      const tilt=Math.sin(t*0.6)*1.5+Math.sin(t*4.2)*3*tk*L+G.hx*3;
       const bob=Math.sin(t*1.2)*2-Math.abs(Math.sin(t*7.5))*6*L;
-      el.head.setAttribute('transform',`translate(0 ${bob.toFixed(2)}) rotate(${tilt.toFixed(2)} 200 330)`);
-      el.hairBack.setAttribute('transform',`translate(0 ${(bob*0.8).toFixed(2)}) rotate(${(tilt*0.7).toFixed(2)} 200 330)`);
+      el.head.setAttribute('transform',`translate(${(G.hx*6).toFixed(2)} ${bob.toFixed(2)}) rotate(${tilt.toFixed(2)} 200 330)`);
+      el.hairBack.setAttribute('transform',`translate(${(G.hx*5).toFixed(2)} ${(bob*0.8).toFixed(2)}) rotate(${(tilt*0.7).toFixed(2)} 200 330)`);
       el.crown.setAttribute('transform',`translate(200 ${(98-2*L).toFixed(2)}) rotate(${(Math.sin(t*8)*2*L).toFixed(2)})`);
       // плащ колышется
       el.cape.setAttribute('transform',`rotate(${(Math.sin(t*0.9)*1.2+Math.sin(t*5)*1.5*L).toFixed(2)} 200 352) translate(0 ${(Math.sin(t*1.2)*1.2).toFixed(2)})`);
       el.body.setAttribute('transform',`translate(0 ${(Math.sin(t*1.2)*1.2).toFixed(2)})`);
       // брови
-      el.brows.setAttribute('transform',`translate(0 ${(-6*L).toFixed(2)})`);
+      el.brows.setAttribute('transform',`translate(0 ${(-6*L-3*G.brow).toFixed(2)}) rotate(${(-2.5*G.brow*G.x).toFixed(2)} 200 176)`);
       // глаза
       const widen=1+0.08*clamp((L-0.7)/0.3,0,1);
       el.eyes.forEach((e,i)=>{const c=EYE[i];
         e.setAttribute('transform',`translate(${c.x} ${c.y}) scale(${widen} ${((1-blink*0.96)*widen).toFixed(3)}) translate(${-c.x} ${-c.y})`);});
-      const gx=S.gaze.x*4, gy=S.gaze.y*3-1.5*tk;
+      const gx=S.gaze.x*4*(1-Math.abs(G.x))+G.x*8, gy=(S.gaze.y*3-1.5*tk)*(1-Math.abs(G.x))+0.5*Math.abs(G.x);
       el.pupils.forEach(p=>p.setAttribute('transform',`translate(${gx.toFixed(2)} ${gy.toFixed(2)})`));
     }
     return render;

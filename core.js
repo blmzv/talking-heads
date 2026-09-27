@@ -1,7 +1,7 @@
 /* Общий движок говорящих персонажей (одна сцена, персонажи переключаются без перезагрузки).
    Требует net.js (+ mqtt.min.js) и chars.js. Страница задаёт window.TH_DEFAULT — персонаж по умолчанию. */
 (function(){
-const TH_VERSION='v25';
+const TH_VERSION='v26';
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
