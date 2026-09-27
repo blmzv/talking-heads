@@ -59,24 +59,17 @@ input[type=range]{width:110px;accent-color:var(--accent)}
 <div class="bubble" id="bubble"></div>
 <div class="stage"></div>
 <div class="panel">
-  <button id="micBtn">🎙 Включить микрофон</button>
-  <select id="devSel" hidden title="Какой микрофон слушать"></select>
-  <button id="demoBtn">▶ Демо</button>
   <button id="sayBtn">🗣 Реплика</button>
-  <button id="sigBtn">🎛 Слово по пульту</button>
-  <div class="floor" id="floor" hidden></div>
+  <div class="floor" id="floor"></div>
   <label>Комната <input id="roomInp" type="text" value="skazka" maxlength="24" autocapitalize="off" autocomplete="off"></label>
   <span class="net" id="netDot">○ нет связи</span>
-  <label>Чувствительность <input id="sens" type="range" min="0" max="1" step="0.01" value="1"></label>
-  <div class="meter"><i id="meter"></i></div>
-  <span class="pitch" id="pitch"></span>
-  <div class="status" id="status">Микрофон выключен</div>
+  <div class="status" id="status">Тишина</div>
 </div>
 <div class="hint" id="hint">Слово передаёт пульт. Тап по персонажу — взять слово себе на всех экранах</div>
 <script>window.TH_DEFAULT='belosnezhka';</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.16.0/mqtt.min.js"></script>
-<script src="net.js?v=27"></script>
-<script src="chars.js?v=27"></script>
-<script src="core.js?v=27"></script>
+<script src="net.js?v=28"></script>
+<script src="chars.js?v=28"></script>
+<script src="core.js?v=28"></script>
 </body>
 </html>
