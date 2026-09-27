@@ -1,7 +1,7 @@
 /* Общий движок говорящих персонажей (одна сцена, персонажи переключаются без перезагрузки).
    Требует net.js (+ mqtt.min.js) и chars.js. Страница задаёт window.TH_DEFAULT — персонаж по умолчанию. */
 (function(){
-const TH_VERSION='v24';
+const TH_VERSION='v25';
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -162,7 +162,6 @@ const HINT_OFF='Держите пробел или палец на персон�
 function setFloor(f,who){
   if(f!==S.floor) log('слово: '+S.floor+' → '+f+(who?' ('+who+')':''));
   S.floor=f; if(who) otherGen=who;
-  const svg=$('#char'); if(svg) svg.classList.toggle('muted',S.sig&&f!=='me');
   const b=$('#floor'); b.hidden=!S.sig; b.classList.toggle('me',f==='me');
   b.textContent= f==='me'?'Слово у '+C.gen:f==='other'?'Слово у '+otherGen:'Слово свободно';
 }
@@ -191,6 +190,32 @@ function startNet(){
   net=new ThNet({room,role:'screen',name:C?C.name:'экран',log,
     onFloor:onNetFloor,onState:netStatus,
     onPresence:()=>{}});
+}
+
+// ---------- чистый экран ----------
+const UI_KEY='th_ui';
+function setUI(on){
+  document.body.classList.toggle('clean',!on); save(UI_KEY,on?'1':'0');
+  $('#gear').textContent=on?'✕':'⚙';
+}
+(function(){
+  const g=document.createElement('button'); g.id='gear'; g.title='Настройки';
+  g.style.cssText='position:fixed;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:70;width:38px;height:38px;border-radius:50%;padding:0;font-size:18px;line-height:38px;text-align:center;background:rgba(0,0,0,.18);color:#fff;opacity:.55;box-shadow:none';
+  g.onclick=()=>setUI(document.body.classList.contains('clean'));
+  document.body.appendChild(g);
+  const o=document.createElement('button'); o.id='micOverlay'; o.textContent='🎙 Включить микрофон';
+  o.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:65;font-size:22px;padding:18px 28px;border-radius:999px;box-shadow:0 12px 32px rgba(0,0,0,.3)';
+  o.hidden=true; o.onclick=()=>{ if(audio&&S.needTap) wakeAudio(); else startMic(); };
+  document.body.appendChild(o);
+  const st=document.createElement('style');
+  st.textContent='body.clean header,body.clean nav,body.clean .panel,body.clean .hint{display:none!important} body.clean .stage{max-width:none;padding:8px} body.clean svg{max-height:92vh} #logBox{z-index:80}';
+  document.head.appendChild(st);
+  setUI(load(UI_KEY,'0')==='1');
+})();
+function updateOverlay(){
+  const o=$('#micOverlay'); if(!o) return;
+  const need=!audio||S.needTap;
+  o.hidden=!need; if(need) o.textContent=(audio&&S.needTap)?'👆 Нажмите, чтобы включить звук':'🎙 Включить микрофон';
 }
 
 // ---------- UI ----------
@@ -261,6 +286,7 @@ function frame(now){
       S._acc={n:0,lvl:0,t:0}; }
   }
   if(render) render(t,blink,S,dt);
+  updateOverlay();
 
   meter.style.width=(S.level*100).toFixed(0)+'%';
   pitchEl.textContent=(S.mode==='mic'&&audio)?('вход '+(S.raw*1000).toFixed(0)+' ×'+S.gain.toFixed(1)):'';
